@@ -1,0 +1,19 @@
+[package]
+name = "pdfree-ffi"
+description = "PDFree native FFI wrapper — pdfree-core for Swift/Kotlin via UniFFI."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+# `lib` for workspace-internal use; the C ABI dylib/staticlib are what the
+# Swift/Kotlin shells link against once UniFFI codegen is wired in Phase 4.
+crate-type = ["lib", "cdylib", "staticlib"]
+name = "pdfree_ffi"
+
+[dependencies]
+pdfree-core = { path = "../pdfree-core" }
+thiserror.workspace = true

@@ -1,0 +1,34 @@
+# PDFree workspace — a truly free, no-watermark, no-limit PDF toolkit.
+#
+# The Rust core (`pdfree-core`) is the single source of truth for all PDF
+# logic. Platform shells (SwiftUI, React+WASM, Tauri) bind to it through the
+# `pdfree-ffi` (UniFFI) and `pdfree-wasm` (wasm-bindgen) crates.
+[workspace]
+resolver = "2"
+members = [
+    "crates/pdfree-core",
+    "crates/pdfree-ai",
+    "crates/pdfree-ffi",
+    "crates/pdfree-wasm",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+license = "BUSL-1.1"
+authors = ["Konjo AI"]
+repository = "https://github.com/konjoai/pdfree"
+rust-version = "1.80"
+
+[workspace.dependencies]
+pdfium-render = "0.8"
+image = { version = "0.25", default-features = false, features = ["png"] }
+thiserror = "2"
+log = "0.4"
+
+# Release profile tuned for shipping small, fast binaries to every platform.
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
