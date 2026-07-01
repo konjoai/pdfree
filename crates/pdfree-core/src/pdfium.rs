@@ -1,9 +1,9 @@
-//! PDFium library discovery and binding.
+//! `PDFium` library discovery and binding.
 //!
-//! PDFree renders through PDFium — the same engine Chrome uses — via the
+//! `PDFree` renders through `PDFium` — the same engine Chrome uses — via the
 //! `pdfium-render` crate, which loads the shared library dynamically at
 //! runtime. That keeps `pdfree-core` free of any build-time link to a native
-//! blob and lets each platform ship the PDFium binary its own way (see
+//! blob and lets each platform ship the `PDFium` binary its own way (see
 //! `docs/pdfium-bundling.md`).
 //!
 //! ## Discovery order
@@ -19,7 +19,7 @@
 //! 3. The system library search path (`bind_to_system_library`).
 //!
 //! Every path tried is recorded so a failure can tell the user exactly where
-//! PDFree looked.
+//! `PDFree` looked.
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -28,13 +28,14 @@ use pdfium_render::prelude::{Pdfium, PdfiumError};
 
 use crate::error::PdfError;
 
-/// The platform-specific PDFium file name, e.g. `libpdfium.so`,
+/// The platform-specific `PDFium` file name, e.g. `libpdfium.so`,
 /// `libpdfium.dylib`, or `pdfium.dll`.
+#[must_use]
 pub fn library_file_name() -> OsString {
     Pdfium::pdfium_platform_library_name()
 }
 
-/// Candidate directories that may hold a bundled PDFium binary.
+/// Candidate directories that may hold a bundled `PDFium` binary.
 fn vendor_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     if let Ok(cwd) = std::env::current_dir() {
@@ -48,10 +49,15 @@ fn vendor_dirs() -> Vec<PathBuf> {
     dirs
 }
 
-/// Bind to PDFium, searching the locations documented on this module.
+/// Bind to `PDFium`, searching the locations documented on this module.
 ///
 /// Returns a ready-to-use [`Pdfium`] instance, or [`PdfError::PdfiumUnavailable`]
 /// listing every path that was tried.
+///
+/// # Errors
+///
+/// Returns [`PdfError::PdfiumUnavailable`] if the library cannot be found or
+/// loaded from any of the searched locations.
 pub fn bind() -> crate::error::Result<Pdfium> {
     let mut searched: Vec<PathBuf> = Vec::new();
 

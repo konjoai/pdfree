@@ -89,9 +89,11 @@ pdfree/                          ← repo root
 ```
 
 `pdfree-core` module map (module → phase it lands in):
-`document.rs` + `renderer.rs` (Phase 0 ✅), `forms.rs` (Phase 1), `signatures.rs`
-+ `annotations.rs` (Phase 2), `editor.rs` + `pages.rs` + `convert.rs` (Phase 3).
-Later-phase modules exist as scaffolds returning `PdfError::NotImplemented`.
+`document.rs` + `renderer.rs` (Phase 0 ✅), `forms.rs` (Phase 1 ✅ — text/checkbox
+fill + text overlay; dropdown/list-box *writing* deferred, see Phase 1 below),
+`signatures.rs` + `annotations.rs` (Phase 2), `editor.rs` + `pages.rs` +
+`convert.rs` (Phase 3). Later-phase modules exist as scaffolds returning
+`PdfError::NotImplemented`.
 
 ---
 
@@ -151,12 +153,20 @@ protects against competitors wrapping it as a SaaS.
 - [x] Write unit/integration tests for open + render
 - [x] Confirm PDFium binary bundling strategy per platform (`docs/pdfium-bundling.md`)
 
-### Phase 1 — Core Read + Fill
-- [ ] `document.rs`: open, save, metadata (open/save/metadata done in Phase 0)
-- [ ] `renderer.rs`: render pages to images at arbitrary DPI ✅ (done in Phase 0)
-- [ ] `forms.rs`: detect AcroForm fields, fill text/checkbox/dropdown
-- [ ] `forms.rs`: overlay text boxes on non-interactive PDFs
-- [ ] Tests: fill a real IRS Form 1040 PDF, assert field values persist
+### Phase 1 — Core Read + Fill ✅ DONE (with one documented gap)
+- [x] `document.rs`: open, save, metadata (open/save/metadata done in Phase 0)
+- [x] `renderer.rs`: render pages to images at arbitrary DPI ✅ (done in Phase 0)
+- [x] `forms.rs`: detect AcroForm fields (`forms::fields`), fill text/checkbox
+      (`forms::fill`). **Dropdown/list-box writing is not supported** —
+      `pdfium-render` 0.8.37 exposes no public setter for selecting a combo/
+      list box option (only text-field and checkbox setters exist). Calling
+      `fill()` on a dropdown/list-box/radio/signature field returns
+      `PdfError::UnsupportedFieldFill` rather than silently no-opping.
+      Revisit if a future `pdfium-render` release adds the setter, or drop to
+      lower-level `AcroForm` dictionary writes if that's ever worth the risk.
+- [x] `forms.rs`: overlay text boxes on non-interactive PDFs (`forms::overlay_text`)
+- [x] Tests: fill a real IRS Form 1040 PDF (`tests/fixtures/irs_f1040.pdf`,
+      fetched from irs.gov), assert field values persist after save/reload
 
 ### Phase 2 — Sign + Annotate
 - [ ] `signatures.rs`: place signature image at coordinates

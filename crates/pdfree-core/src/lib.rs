@@ -1,9 +1,9 @@
 //! # pdfree-core
 //!
-//! The PDFree engine: the single, platform-agnostic source of truth for all
+//! The `PDFree` engine: the single, platform-agnostic source of truth for all
 //! PDF logic. It compiles to native code (macOS, Linux, Windows) and to WASM
 //! for the browser, and is wrapped by the platform shells through
-//! `pdfree-ffi` (UniFFI → Swift) and `pdfree-wasm` (wasm-bindgen → JS).
+//! `pdfree-ffi` (`UniFFI` → Swift) and `pdfree-wasm` (wasm-bindgen → JS).
 //!
 //! Rendering and parsing go through [PDFium](https://pdfium.googlesource.com/pdfium/)
 //! — the same engine Chrome uses — via the `pdfium-render` crate, loaded
@@ -11,7 +11,7 @@
 //!
 //! ## Phase 0 (this milestone)
 //!
-//! Prove the PDFium integration: open a document and render a page to PNG.
+//! Prove the `PDFium` integration: open a document and render a page to PNG.
 //!
 //! ```no_run
 //! use pdfree_core::{Document, RenderOptions};
@@ -45,6 +45,10 @@ pub use renderer::RenderOptions;
 /// Convenience: open a document from a file path.
 ///
 /// Equivalent to [`Document::open`].
+///
+/// # Errors
+///
+/// Propagates any error from [`Document::open`].
 pub fn open_document<P: AsRef<std::path::Path>>(path: P) -> Result<Document> {
     Document::open(path)
 }
@@ -52,6 +56,10 @@ pub fn open_document<P: AsRef<std::path::Path>>(path: P) -> Result<Document> {
 /// Convenience: render page `index` (0-based) of a document to PNG bytes.
 ///
 /// Equivalent to [`Document::render_page`].
+///
+/// # Errors
+///
+/// Propagates any error from [`Document::render_page`].
 pub fn render_page(document: &Document, index: u16, options: &RenderOptions) -> Result<Vec<u8>> {
     document.render_page(index, options)
 }

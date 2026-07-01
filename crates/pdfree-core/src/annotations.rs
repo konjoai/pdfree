@@ -12,6 +12,10 @@ pub enum AnnotationKind {
 }
 
 /// Add a markup annotation to a page.
+///
+/// # Errors
+///
+/// Always returns [`PdfError::NotImplemented`] until Phase 2.
 pub fn annotate(_pdf_bytes: &[u8], _page: u16, _kind: AnnotationKind) -> Result<Vec<u8>> {
     Err(PdfError::NotImplemented("annotations::annotate"))
 }

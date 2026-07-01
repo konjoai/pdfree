@@ -3,6 +3,10 @@
 use crate::error::{PdfError, Result};
 
 /// Replace a run of text on a page, matching the original font where possible.
+///
+/// # Errors
+///
+/// Always returns [`PdfError::NotImplemented`] until Phase 3.
 pub fn replace_text(_pdf_bytes: &[u8], _page: u16, _find: &str, _replace: &str) -> Result<Vec<u8>> {
     Err(PdfError::NotImplemented("editor::replace_text"))
 }

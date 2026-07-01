@@ -1,6 +1,6 @@
 //! Rasterize PDF pages to images.
 //!
-//! Rendering goes through PDFium at an arbitrary DPI. PDF page geometry is
+//! Rendering goes through `PDFium` at an arbitrary DPI. PDF page geometry is
 //! measured in points (1/72 inch), so a request for `dpi` scales the page by
 //! `dpi / 72`.
 
@@ -34,20 +34,28 @@ impl Default for RenderOptions {
 
 impl RenderOptions {
     /// Convenience constructor.
+    #[must_use]
     pub fn with_dpi(dpi: f32) -> Self {
         Self { dpi }
     }
 
-    fn scale(&self) -> f32 {
+    fn scale(self) -> f32 {
         self.dpi / POINTS_PER_INCH
     }
 }
 
 /// Render page `index` (0-based) of the given PDF bytes to PNG-encoded bytes.
 ///
-/// This binds PDFium, loads the document from memory, rasterizes the one page,
-/// and returns the PNG. Working from bytes (rather than a file path) keeps the
-/// same code path usable on the web, where there is no filesystem.
+/// This binds `PDFium`, loads the document from memory, rasterizes the one
+/// page, and returns the PNG. Working from bytes (rather than a file path)
+/// keeps the same code path usable on the web, where there is no filesystem.
+///
+/// # Errors
+///
+/// Returns [`PdfError::InvalidRenderTarget`] for a non-positive/non-finite
+/// DPI or a render that would exceed the pixel-size guard,
+/// [`PdfError::PageOutOfRange`] for a missing page index, and propagates
+/// `PDFium` / image-encoding errors otherwise.
 pub fn render_page_to_png(
     pdf_bytes: &[u8],
     index: u16,

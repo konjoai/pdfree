@@ -13,6 +13,10 @@ pub struct SignaturePlacement {
 }
 
 /// Stamp a signature image (PNG bytes) onto a page.
+///
+/// # Errors
+///
+/// Always returns [`PdfError::NotImplemented`] until Phase 2.
 pub fn place_signature(
     _pdf_bytes: &[u8],
     _image_png: &[u8],
