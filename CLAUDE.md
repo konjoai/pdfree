@@ -93,8 +93,10 @@ pdfree/                          ← repo root
 fill + text overlay; dropdown/list-box *writing* deferred, see Phase 1 below),
 `signatures.rs` + `annotations.rs` (Phase 2 ✅ — visual signature placement,
 markup/note annotations; PKCS#12 crypto signing deferred, see Phase 2 below),
-`editor.rs` + `pages.rs` + `convert.rs` (Phase 3). Later-phase modules exist as
-scaffolds returning `PdfError::NotImplemented`.
+`editor.rs` + `pages.rs` + `convert.rs` (Phase 3 ✅ — font-preserving text
+replace, merge/split/rotate/extract/reorder, text extraction + image→PDF;
+PDF↔DOCX deferred, see Phase 3 below). No further scaffold modules remain —
+Phase 4 is platform shells, Phases 5–7 add `pdfree-ai`.
 
 ---
 
@@ -189,10 +191,33 @@ protects against competitors wrapping it as a SaaS.
       their icon appearance natively; confirmed by rendering).
 - [ ] Web: `SignaturePad.tsx` using canvas → PNG → core
 
-### Phase 3 — Edit + Merge/Split + Convert
-- [ ] `editor.rs`: detect font of clicked text, replace in-place
-- [ ] `pages.rs`: merge N PDFs; split by range; rotate/extract/reorder
-- [ ] `convert.rs`: PDF → DOCX; DOCX/image → PDF
+### Phase 3 — Edit + Merge/Split + Convert ✅ CORE DONE (DOCX deferred)
+- [x] `editor.rs`: detect font of clicked text (`text_runs`, `text_run_at_point`),
+      replace in-place (`replace_text`). Font is preserved by construction —
+      the matching text object's own content is mutated, not recreated, so
+      there's no font-matching heuristic to get wrong. **Known scope
+      boundary**: a run containing the search text more than once replaces
+      every occurrence together; there's no character-offset-precise
+      "replace just this one instance" within a run yet.
+- [x] `pages.rs`: merge N PDFs (`merge`); split by range (`split`);
+      rotate (`rotate`); extract (`extract`, also powers `reorder` — a
+      single `FPDF_ImportPages` call with an explicit page order handles
+      both "pull these pages out" and "put them in this order").
+      **Implementation note for future edits**: never call
+      `crate::pdfium::bind()` twice within one call chain — confirmed
+      empirically that two live `PDFium` bindings in the same process hangs.
+      `pages::extract`/`reorder` share one binding via a private
+      `extract_with(&Pdfium, ...)` helper for exactly this reason.
+- [x] `convert.rs`: `to_text` (all-pages plain text) and `from_image`
+      (image → single-page PDF, sized to the image) are fully implemented.
+      **PDF ↔ DOCX is deliberately not implemented** — `to_docx`/`from_docx`
+      stay `PdfError::NotImplemented`. This isn't a small API gap like the
+      Phase 1/2 ones: DOCX conversion needs a document *layout* engine
+      (paragraphs, styles, reflow) that neither `PDFium` nor anything else in
+      this workspace provides. Picking one (a layout-reconstruction crate,
+      shelling out to a conversion service, or a much lower-fidelity
+      text-only export) is a real dependency decision — added to the open
+      questions below rather than guessed at.
 
 ### Phase 4 — Platform Shells
 - [ ] Wire UniFFI codegen for `pdfree-ffi` (UDL already frozen)
@@ -243,3 +268,11 @@ When continuing from this document, Claude Code should:
 - [ ] **iOS priority**: ship macOS + web first, then iOS in v1.1?
 - [ ] **Domain**: pdfree.app? pdfree.io? getpdfree.com? (check availability)
 - [ ] **AI as a paid tier?**: is cloud AI (real per-call cost) the one optional paid add-on?
+- [ ] **PDF ↔ DOCX conversion strategy**: `convert.rs::to_docx`/`from_docx` are
+      `NotImplemented` (Phase 3). `PDFium` has no DOCX support at all — this
+      needs either (a) a Rust document-layout-reconstruction crate, (b)
+      shelling out to a conversion service/binary (e.g. LibreOffice
+      headless) at the cost of the "no cloud, no dependencies we don't
+      control" pitch, or (c) a deliberately lower-fidelity "extract text +
+      basic structure" export instead of true layout-preserving conversion.
+      Worth deciding before Phase 4 platform shells commit to a UI for it.
