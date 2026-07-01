@@ -35,3 +35,7 @@ apps/web/src/wasm/
 
 # macOS
 .DS_Store
+
+# Python bytecode (Konjo scripts)
+__pycache__/
+*.pyc
