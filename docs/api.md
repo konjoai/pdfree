@@ -1,4 +1,4 @@
-# pdfree-core API (Phase 0 + 1)
+# pdfree-core API (Phase 0 + 1 + 2)
 
 The engine works on **bytes**, not file paths, so the identical code path runs on
 native platforms and in the browser (where there is no filesystem). Convenience
@@ -88,6 +88,61 @@ let stamped = forms::overlay_text(
 )?;
 ```
 
+## Signing: placing a visual signature image
+
+```rust
+use pdfree_core::signatures::{self, SignaturePlacement};
+
+let signed: Vec<u8> = signatures::place_signature(
+    &pdf_bytes,
+    &signature_png,   // drawn, typed-and-rendered, or uploaded — the shell's choice
+    SignaturePlacement { page: 0, x: 72.0, y: 450.0, width: 150.0, height: 60.0 },
+)?;
+```
+
+This is the "basic e-sign" path from `CLAUDE.md`'s v1 spec: stamp an image
+onto the page, no cryptography involved. `signatures::sign_with_certificate`
+(PKCS#12 digital certificate signing) is deliberately `PdfError::NotImplemented`
+— see `CLAUDE.md`'s Phase 2 entry for why.
+
+## Annotations: highlight, underline, strikeout, sticky notes
+
+```rust
+use pdfree_core::annotations::{self, Annotation, AnnotationKind, Color};
+
+let annotated: Vec<u8> = annotations::annotate(
+    &pdf_bytes,
+    &[
+        Annotation {
+            page: 0, kind: AnnotationKind::Highlight,
+            x: 72.0, y: 600.0, width: 300.0, height: 20.0,
+            color: None,                    // None = kind's default color
+            note: Some("check this".into()),
+        },
+        Annotation {
+            page: 0, kind: AnnotationKind::Note,
+            x: 400.0, y: 700.0, width: 24.0, height: 24.0,
+            color: None,
+            note: Some("reviewer comment".into()),
+        },
+    ],
+)?;
+
+// Read every highlight/underline/strikeout/note back out, e.g. to render an
+// annotation list UI or support deleting one.
+let found = annotations::list(&annotated)?;
+```
+
+**Known gap**: highlight/underline/strikeout write correct, spec-compliant
+`/QuadPoints`/`/Rect`/`/C` data — verified by `annotations::list` reading it
+straight back — that most real-world viewers (Acrobat, Preview, browsers)
+render correctly per the PDF spec's default-appearance-synthesis rule. But
+`pdfium-render` 0.8.37 doesn't expose a way to attach an explicit appearance
+stream (`/AP`) to those three annotation types, and `PDFium`'s own rendering
+doesn't synthesize one either — so they won't show in `pdfree-core`'s own
+render preview yet. `AnnotationKind::Note` is unaffected: `PDFium` synthesizes
+a sticky-note icon appearance natively.
+
 ## Errors
 
 All fallible calls return `pdfree_core::Result<T>` (`Err` is `PdfError`):
@@ -101,8 +156,10 @@ All fallible calls return `pdfree_core::Result<T>` (`Err` is `PdfError`):
 | `UnknownFormField(name)` | `forms::fill` was asked to fill a name not present in the document |
 | `UnsupportedFieldFill { name, kind }` | `forms::fill` was asked to fill a field with a value kind it can't accept (wrong value type, or a dropdown/list-box/radio/signature field) |
 | `InvalidOverlay(..)` | `forms::overlay_text` given a non-positive/non-finite `font_size` |
-| `Io(..)` / `Image(..)` | Filesystem or PNG-encoding failure |
-| `NotImplemented(name)` | A later-phase module (`editor`, `signatures`, …) called before it's built |
+| `InvalidAnnotation(..)` | `annotations::annotate` given a non-positive/non-finite width/height |
+| `InvalidSignaturePlacement(..)` | `signatures::place_signature` given a non-positive/non-finite width/height |
+| `Io(..)` / `Image(..)` | Filesystem, PNG-encoding, or signature-image-decoding failure |
+| `NotImplemented(name)` | A later-phase module (`editor`, `pages`, `convert`, `signatures::sign_with_certificate`) called before it's built |
 
 ## PDFium binding
 
@@ -111,6 +168,6 @@ then `vendor/pdfium/`, then the system path. See `docs/pdfium-bundling.md`.
 
 ## Later phases
 
-`editor`, `signatures`, `annotations`, `pages`, and `convert` are present as
-scaffolds and currently return `PdfError::NotImplemented`. Their signatures are
-the intended shape; Phases 2–3 fill in the bodies.
+`editor`, `pages`, and `convert` are present as scaffolds and currently return
+`PdfError::NotImplemented`. Their signatures are the intended shape; Phase 3
+fills in the bodies.
