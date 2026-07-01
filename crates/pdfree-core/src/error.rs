@@ -65,4 +65,12 @@ pub enum PdfError {
     /// A text overlay was requested with a nonsensical position or size.
     #[error("invalid text overlay: {0}")]
     InvalidOverlay(String),
+
+    /// An annotation was requested with a nonsensical position or size.
+    #[error("invalid annotation: {0}")]
+    InvalidAnnotation(String),
+
+    /// A signature placement was requested with a nonsensical position or size.
+    #[error("invalid signature placement: {0}")]
+    InvalidSignaturePlacement(String),
 }

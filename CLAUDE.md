@@ -91,9 +91,10 @@ pdfree/                          ← repo root
 `pdfree-core` module map (module → phase it lands in):
 `document.rs` + `renderer.rs` (Phase 0 ✅), `forms.rs` (Phase 1 ✅ — text/checkbox
 fill + text overlay; dropdown/list-box *writing* deferred, see Phase 1 below),
-`signatures.rs` + `annotations.rs` (Phase 2), `editor.rs` + `pages.rs` +
-`convert.rs` (Phase 3). Later-phase modules exist as scaffolds returning
-`PdfError::NotImplemented`.
+`signatures.rs` + `annotations.rs` (Phase 2 ✅ — visual signature placement,
+markup/note annotations; PKCS#12 crypto signing deferred, see Phase 2 below),
+`editor.rs` + `pages.rs` + `convert.rs` (Phase 3). Later-phase modules exist as
+scaffolds returning `PdfError::NotImplemented`.
 
 ---
 
@@ -168,10 +169,24 @@ protects against competitors wrapping it as a SaaS.
 - [x] Tests: fill a real IRS Form 1040 PDF (`tests/fixtures/irs_f1040.pdf`,
       fetched from irs.gov), assert field values persist after save/reload
 
-### Phase 2 — Sign + Annotate
-- [ ] `signatures.rs`: place signature image at coordinates
-- [ ] `signatures.rs`: digital certificate signing (PKCS#12)
-- [ ] `annotations.rs`: highlight, underline, strikethrough, sticky notes
+### Phase 2 — Sign + Annotate ✅ CORE DONE (crypto signing deferred)
+- [x] `signatures.rs`: place signature image at coordinates (`place_signature`)
+- [ ] `signatures.rs`: digital certificate signing (PKCS#12). Deliberately
+      **not implemented** — `PDFium` has no cryptography; this needs a real
+      crypto/PKI stack choice plus incremental-update byte-range signing, and
+      depends on the "v1 = basic e-sign only, or pursue ESIGN/eIDAS from day
+      one?" open question below. `sign_with_certificate` stays
+      `PdfError::NotImplemented` until that's decided.
+- [x] `annotations.rs`: highlight, underline, strikethrough, sticky notes
+      (`annotate` to add, `list` to read back). **Known gap**: highlight/
+      underline/strikeout write correct, spec-compliant data (`/QuadPoints`,
+      `/Rect`, `/C` — verified via `list`) that most real-world viewers
+      render correctly per the PDF spec's default-appearance-synthesis rule,
+      but `pdfium-render` 0.8.37 doesn't expose a way to attach an explicit
+      appearance stream to those three annotation types, and `PDFium`'s own
+      rendering doesn't synthesize one — so they won't show in `pdfree-core`'s
+      own render preview yet. Sticky notes are unaffected (PDFium synthesizes
+      their icon appearance natively; confirmed by rendering).
 - [ ] Web: `SignaturePad.tsx` using canvas → PNG → core
 
 ### Phase 3 — Edit + Merge/Split + Convert
