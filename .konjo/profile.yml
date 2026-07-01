@@ -19,7 +19,9 @@
 # found 21 real MISSED mutants (actual pdfree-core test-coverage gaps to fix);
 # repo:clippy fails on cargo's own build-completion status line being reported as a
 # "finding" (pdfree-core's clippy is independently confirmed clean elsewhere — looks
-# like a separate, narrower kiban output-parsing bug). .github/workflows/konjo-gates.yml's
+# like a separate, narrower kiban output-parsing bug). Bumped to v1.1.4 to check
+# whether it fixes the repo:clippy parsing bug specifically; the mutants findings are
+# a pdfree-side test-writing task no kiban bump can fix. .github/workflows/konjo-gates.yml's
 # gates job stays continue-on-error until both are resolved. The fields below are
 # otherwise still the intended target state.
 #

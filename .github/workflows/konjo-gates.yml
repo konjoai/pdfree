@@ -35,9 +35,11 @@
 #     independently confirmed clean under much stricter settings (Wall-2's
 #     konjo-gate.yml), so this looks like a narrower, separate kiban-side
 #     output-parsing bug in how repo:clippy captures/filters cargo's stdout.
-# Keep continue-on-error until both are resolved (mutants: write the missing tests;
-# clippy: fix or work around the parsing bug upstream), then remove this override and
-# let `gates` block again.
+# Bumped to v1.1.4 to check whether it fixes the repo:clippy parsing bug specifically.
+# repo:cargo-mutants will still show real findings until the 21 missing tests are
+# written — that's a pdfree-side task, not something a kiban bump can fix. Keep
+# continue-on-error until repo:clippy is confirmed fixed AND the mutants findings are
+# addressed, then remove this override and let `gates` block again.
 
 name: konjo-gates
 
@@ -47,13 +49,13 @@ on:
     branches: [main]
 
 env:
-  KIBAN_REF: "v1.1.3"   # the pinned kiban ref for this repo; bump deliberately
+  KIBAN_REF: "v1.1.4"   # the pinned kiban ref for this repo; bump deliberately
   CARGO_TERM_COLOR: always
 
 jobs:
   gates:
     runs-on: ubuntu-latest
-    continue-on-error: true   # TODO(pdfree): see note above; remove once v1.1.3 is confirmed to fix repo:* gates
+    continue-on-error: true   # TODO(pdfree): see note above; remove once repo:clippy is confirmed fixed and the mutants findings are addressed
     steps:
       - uses: actions/checkout@v4
         with:
