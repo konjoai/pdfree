@@ -1,0 +1,41 @@
+name: PDFree
+options:
+  bundleIdPrefix: ai.konjo.pdfree
+  deploymentTarget:
+    macOS: "14.0"
+targets:
+  PDFree:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/PDFree
+      - path: Sources/Bridge
+        excludes:
+          - "*.modulemap"
+      - path: Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.konjo.pdfree.macos
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Konjo AI"
+        INFOPLIST_KEY_CFBundleDisplayName: PDFree
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Bridge/pdfree_ffiFFI.h
+        # Dev-only: link straight against the repo's build output so `xcodebuild`
+        # + `xcodegen` work without a packaging step. Phase 4 follow-up: embed
+        # libpdfree_ffi.dylib and libpdfium.dylib into Contents/Frameworks and
+        # switch these to @rpath-relative paths for a distributable .app.
+        # libpdfium is NOT linked here — pdfree-core dlopen()s it at runtime by
+        # an absolute path baked in at Rust compile time (see
+        # pdfree-core/src/pdfium.rs), so it needs no dyld search path at all.
+        LIBRARY_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(SRCROOT)/../../target/aarch64-apple-darwin/release"
+        OTHER_LDFLAGS:
+          - "-lpdfree_ffi"
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(SRCROOT)/../../target/aarch64-apple-darwin/release"
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: NO
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"

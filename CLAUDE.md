@@ -95,8 +95,14 @@ fill + text overlay; dropdown/list-box *writing* deferred, see Phase 1 below),
 markup/note annotations; PKCS#12 crypto signing deferred, see Phase 2 below),
 `editor.rs` + `pages.rs` + `convert.rs` (Phase 3 ✅ — font-preserving text
 replace, merge/split/rotate/extract/reorder, text extraction + image→PDF;
-PDF↔DOCX deferred, see Phase 3 below). No further scaffold modules remain —
-Phase 4 is platform shells, Phases 5–7 add `pdfree-ai`.
+PDF↔DOCX deferred, see Phase 3 below), `boxes.rs` (Phase 4 add-on ✅ —
+`boxes_on_page` reconstructs every fillable box on a page from vector
+graphics alone (closed cells, "open" cells with dividers but no top/bottom
+rule, and lone rectangles — see `docs/api.md` for the tier breakdown);
+`box_at_point` is a point-driven convenience wrapper over it. Powers the
+macOS app's scan-on-load box highlighting; not in the original phase plan,
+added alongside that UI work). Phase 4 is otherwise platform shells,
+Phases 5–7 add `pdfree-ai`.
 
 ---
 
@@ -220,8 +226,75 @@ protects against competitors wrapping it as a SaaS.
       questions below rather than guessed at.
 
 ### Phase 4 — Platform Shells
-- [ ] Wire UniFFI codegen for `pdfree-ffi` (UDL already frozen)
-- [ ] macOS SwiftUI app wrapping pdfree-ffi via UniFFI
+- [x] Wire UniFFI codegen for `pdfree-ffi` — migrated to proc-macro mode
+      (`#[uniffi::export]` on `src/lib.rs` directly; the old hand-maintained
+      `pdfree.udl` is deleted so the interface can't drift from the Rust code).
+      Covers the full Phase 0–3 surface (forms, signatures, annotations,
+      editor, pages, convert), not just Phase 0. `scripts/build-macos.sh`
+      builds the dylib and runs `uniffi-bindgen` (a local bin target, no
+      global install) to emit Swift into `apps/macos/Sources/Bridge/`.
+      Currently aarch64-only (Apple Silicon first, per this doc); the script
+      auto-detects and adds x86_64 if that target is ever installed.
+- [x] macOS SwiftUI app wrapping pdfree-ffi via UniFFI — `apps/macos/`
+      (`xcodegen`-generated project from `project.yml`; run `xcodegen
+      generate` after pulling). Full v1 feature set wired into the UI, not
+      just open/render: form fill (text/checkbox fields via a side panel),
+      sign (draw-signature pad, tap to place), annotate (drag for highlight/
+      underline/strikeout, tap for sticky notes), edit text (tap a run,
+      replace in place), overlay text on non-interactive PDFs, pages sidebar
+      (thumbnails, rotate/delete/reorder-by-drag, merge another PDF, insert
+      an image as a page, split into ranges), and text extraction. Plus
+      scan-on-load box filling: every time the current page changes,
+      `PDFDocumentStore` calls `boxesOnPage` and caches the result; every
+      detected box is drawn as a highlighted outline on the canvas up front
+      (see `PageCanvasView`'s `detectedBoxes` overlay) — clicking directly on
+      one in Select mode opens an inline, in-place-editable `TextField`
+      exactly over it, no double-click needed. Double-click-anywhere remains
+      as the manual fallback for spots the scan didn't pick up as a box
+      (falls back to a fixed 140×18pt box centered on the click). Committing
+      calls `overlay_text` at the box's position — see
+      `PDFDocumentStore.boxContaining`/`detectedBoxes` and
+      `ContentView.handleTap`/`handleDoubleTap`. All canvas tools work in PDF
+      points (72/inch, bottom-left origin) computed from the rendered PNG's
+      pixel size — see `PageCanvasView.swift`. The inline editor's text is
+      explicit `.foregroundColor(.black)` — without it, the field's text
+      color came out unreadable (white-on-white against the yellow
+      highlight) in testing. Gotchas worth knowing: (1) the FFI's RGB color
+      record is named `AnnotationColor`, not `Color` — a bare `Color` record
+      silently shadows `SwiftUI.Color` once both are in the same Swift
+      module, which broke every default SwiftUI color reference until
+      renamed on the Rust side (`crates/pdfree-ffi/src/lib.rs`) and
+      regenerated; (2) the app links against
+      `target/aarch64-apple-darwin/release/libpdfree_ffi.dylib` (the
+      per-target dir `scripts/build-macos.sh` actually rebuilds), not
+      `target/release/` (a separate, easily-stale artifact from a plain
+      `cargo build --release` with no `--target` flag) — linking the wrong
+      one silently ships a stale dylib missing whatever FFI symbols were
+      added most recently; (3) see `docs/api.md`'s `boxes` section for two
+      real detection bugs hit and fixed against the actual IRS 1040 fixture
+      (an untransformed-path-matrix bug that put every ruled line in the
+      wrong place, and a cross-row divider-pairing bug) — both are exactly
+      the kind of thing that looks fine against a synthetic single-rect test
+      fixture and silently breaks on a real multi-row form; verify any
+      future change here against a real form, not just synthetic geometry.
+      Verified against real PDFs (IRS Form 1040 for render and box
+      detection — confirmed by rendering the detected boxes back onto the
+      page image and reviewing it; `form_sample.pdf` for the full mutation
+      surface — forms/signatures/annotations/editor/pages/convert all
+      confirmed working through the compiled dylib, plus a dedicated
+      `tests/boxes.rs` covering closed-cell, open-cell, and point-lookup
+      cases) — but end-to-end click-driven UI testing (actually dragging a
+      highlight, drawing a signature, clicking a highlighted box in the
+      running app) wasn't done from this sandbox; only the underlying FFI
+      calls each UI action makes were verified directly. Dev-only linking:
+      the app links
+      `libpdfree_ffi.dylib` by absolute rpath; it isn't embedded into the
+      `.app` bundle yet, so this isn't distributable as-is — that packaging
+      step, and PKCS#12 crypto signing (still `NotImplemented`, see Phase 2),
+      are still open. Deployment target is macOS 14.0, not 13.0 as originally
+      set up — bumped after Xcode 26's toolchain threw a `SwiftUICore`
+      direct-linking error at 13.0 (a known class of Xcode/SDK version-skew
+      issue, not a code problem).
 - [ ] Web app (React + WASM) with full toolbar
 - [ ] Tauri desktop app for Windows/Linux (reuse web UI)
 - [ ] iOS app (shared SwiftUI views from macOS)
