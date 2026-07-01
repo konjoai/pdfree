@@ -16,16 +16,30 @@
 # two workflows run in isolated VMs and share no state.
 #
 # TODO(pdfree): `continue-on-error: true` on the gates job is a deliberate, temporary
-# workaround. As of KIBAN_REF v1.1.0, all four repo-native gates above fail instantly
-# (~0.2s total for `konjo-gates` to run, even with fmt/clippy/cargo-deny/cargo-mutants
-# confirmed installed and on PATH — cargo-mutants alone needs minutes just for its
-# baseline test pass) with the generic "net-new findings" message and no further
-# detail. That's not consistent with the tools actually running; it looks like a bug
-# in kiban's own repo-native gate invocation for this pack/profile shape, not a real
-# finding in this repo (build+test and the advisory Wall-2 gate — which run the real
-# fmt/clippy/tests directly, no kiban involved — are green). Investigate against
-# kiban's own source once reachable, then remove this override and let `gates` block
-# again.
+# workaround. As of KIBAN_REF v1.1.0, all four repo-native gates
+# (repo:fmt-check/clippy/cargo-deny/cargo-mutants) failed instantly (~0.2s total for
+# `konjo-gates` to run, even with the tools confirmed installed and on PATH) with a
+# generic "net-new findings" message — see docs/kiban-investigation-handoff.md for the
+# full diagnosis.
+#
+# Bumped to v1.1.3 and verified on CI (run 28533997204, ~15 minutes real execution vs.
+# the old ~0.2s): the core instant-fail bug is CONFIRMED FIXED. repo:fmt-check,
+# repo:cargo-deny, and repo:unsafe-budget now pass for real. Two gates still fail, for
+# real (and different) reasons — neither is the original bug:
+#   - repo:cargo-mutants now genuinely runs (real baseline build + mutation sweep) and
+#     found 21 real MISSED mutants in pdfree-core — actual test-coverage gaps to fix,
+#     not a kiban bug.
+#   - repo:clippy fails on a single "net-new finding" whose text is literally cargo's
+#     own build-completion status line ("Finished dev profile [unoptimized+debuginfo]
+#     target(s) in N.94s"), not a lint warning — pdfree-core's clippy output is
+#     independently confirmed clean under much stricter settings (Wall-2's
+#     konjo-gate.yml), so this looks like a narrower, separate kiban-side
+#     output-parsing bug in how repo:clippy captures/filters cargo's stdout.
+# Bumped to v1.1.4 to check whether it fixes the repo:clippy parsing bug specifically.
+# repo:cargo-mutants will still show real findings until the 21 missing tests are
+# written — that's a pdfree-side task, not something a kiban bump can fix. Keep
+# continue-on-error until repo:clippy is confirmed fixed AND the mutants findings are
+# addressed, then remove this override and let `gates` block again.
 
 name: konjo-gates
 
@@ -35,13 +49,13 @@ on:
     branches: [main]
 
 env:
-  KIBAN_REF: "v1.1.0"   # the pinned kiban ref for this repo; bump deliberately
+  KIBAN_REF: "v1.1.4"   # the pinned kiban ref for this repo; bump deliberately
   CARGO_TERM_COLOR: always
 
 jobs:
   gates:
     runs-on: ubuntu-latest
-    continue-on-error: true   # TODO(pdfree): see note above; remove once kiban's repo-native gates are fixed/understood
+    continue-on-error: true   # TODO(pdfree): see note above; remove once repo:clippy is confirmed fixed and the mutants findings are addressed
     steps:
       - uses: actions/checkout@v4
         with:

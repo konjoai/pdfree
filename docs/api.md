@@ -1,4 +1,4 @@
-# pdfree-core API (Phase 0 + 1 + 2)
+# pdfree-core API (Phase 0 + 1 + 2 + 3)
 
 The engine works on **bytes**, not file paths, so the identical code path runs on
 native platforms and in the browser (where there is no filesystem). Convenience
@@ -143,6 +143,58 @@ doesn't synthesize one either — so they won't show in `pdfree-core`'s own
 render preview yet. `AnnotationKind::Note` is unaffected: `PDFium` synthesizes
 a sticky-note icon appearance natively.
 
+## Editing: font-preserving in-place text replacement
+
+```rust
+use pdfree_core::editor;
+
+// "Detect font of clicked text": enumerate every text run with its font and
+// bounds, or hit-test a specific point (both in PDF points).
+let runs = editor::text_runs(&pdf_bytes)?;
+let hit = editor::text_run_at_point(&pdf_bytes, 0, 80.0, 705.0)?; // Option<TextRun>
+
+// Replace text in place. The matching text object's own content is mutated,
+// not recreated, so its font carries over automatically — no font-matching
+// heuristic involved.
+let edited: Vec<u8> = editor::replace_text(&pdf_bytes, 0, "page one", "chapter one")?;
+```
+
+If a text run contains `find` more than once, every occurrence in that run is
+replaced together — there's no character-offset-precise "replace just this
+one instance" within a run yet. `replace_text` errors
+(`PdfError::TextNotFound`) rather than silently no-opping if nothing on the
+page matches.
+
+## Pages: merge, split, rotate, extract, reorder
+
+```rust
+use pdfree_core::pages::{self, Rotation};
+
+let merged: Vec<u8> = pages::merge(&[doc_a_bytes, doc_b_bytes])?;
+let pieces: Vec<Vec<u8>> = pages::split(&pdf_bytes, &[(0, 2), (3, 5)])?; // inclusive 0-based ranges
+let rotated: Vec<u8> = pages::rotate(&pdf_bytes, 0, Rotation::Clockwise90)?;
+
+// extract() pulls the given 0-based pages, in exactly the order given, into
+// a new document — which is also how reorder() is implemented: give it a
+// full permutation of the document's page indices.
+let extracted: Vec<u8> = pages::extract(&pdf_bytes, &[2, 0, 1])?;
+let reordered: Vec<u8> = pages::reorder(&pdf_bytes, &[1, 0])?; // swap a 2-page doc
+```
+
+## Converting: text extraction and image → PDF
+
+```rust
+use pdfree_core::convert;
+
+let text: String = convert::to_text(&pdf_bytes)?;           // every page, joined
+let pdf: Vec<u8> = convert::from_image(&png_bytes, 96.0)?;  // dpi controls the resulting page size
+```
+
+`convert::to_docx`/`convert::from_docx` are `PdfError::NotImplemented` —
+`PDFium` has no DOCX support, and faithful PDF↔DOCX conversion needs a
+document layout engine this workspace doesn't have yet. See `CLAUDE.md`'s
+open questions.
+
 ## Errors
 
 All fallible calls return `pdfree_core::Result<T>` (`Err` is `PdfError`):
@@ -158,16 +210,28 @@ All fallible calls return `pdfree_core::Result<T>` (`Err` is `PdfError`):
 | `InvalidOverlay(..)` | `forms::overlay_text` given a non-positive/non-finite `font_size` |
 | `InvalidAnnotation(..)` | `annotations::annotate` given a non-positive/non-finite width/height |
 | `InvalidSignaturePlacement(..)` | `signatures::place_signature` given a non-positive/non-finite width/height |
-| `Io(..)` / `Image(..)` | Filesystem, PNG-encoding, or signature-image-decoding failure |
-| `NotImplemented(name)` | A later-phase module (`editor`, `pages`, `convert`, `signatures::sign_with_certificate`) called before it's built |
+| `InvalidPageRange(..)` | `pages::merge`/`split`/`extract` given an empty or inverted range/list |
+| `InvalidPageOrder(..)` | `pages::reorder` given a list that isn't exactly a permutation of the document's pages |
+| `TextNotFound { page, find }` | `editor::replace_text` found no occurrence of `find` on `page` |
+| `Io(..)` / `Image(..)` | Filesystem, PNG-encoding, or signature/image-decoding failure |
+| `NotImplemented(name)` | `signatures::sign_with_certificate` or `convert::to_docx`/`from_docx` — the two capabilities deliberately deferred pending open decisions |
 
 ## PDFium binding
 
 `pdfree_core::pdfium::bind()` loads PDFium, searching `$PDFIUM_DYNAMIC_LIB_PATH`,
 then `vendor/pdfium/`, then the system path. See `docs/pdfium-bundling.md`.
 
-## Later phases
+**Implementation note**: never call `bind()` twice within one call chain —
+two live `PDFium` bindings in the same process hangs (confirmed empirically
+while building `pages::reorder`). Every public function binds exactly once;
+`pages::extract`/`pages::reorder` share one binding through a private
+`extract_with(&Pdfium, ...)` helper rather than one calling the other's
+public entry point.
 
-`editor`, `pages`, and `convert` are present as scaffolds and currently return
-`PdfError::NotImplemented`. Their signatures are the intended shape; Phase 3
-fills in the bodies.
+## Status
+
+Phases 0–3 are complete. `pdfree-core`'s only remaining deliberate gaps are
+`signatures::sign_with_certificate` (PKCS#12) and `convert::to_docx`/
+`from_docx` — both `PdfError::NotImplemented` pending open decisions in
+`CLAUDE.md`, not missing engineering. Phase 4 (platform shells) and Phases
+5–7 (`pdfree-ai`) are next.

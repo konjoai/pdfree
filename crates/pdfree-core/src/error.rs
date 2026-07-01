@@ -15,7 +15,9 @@ pub enum PdfError {
     /// library. See [`crate::pdfium`] for the discovery strategy.
     #[error("could not load the PDFium library (searched: {searched:?}): {source}")]
     PdfiumUnavailable {
+        /// Every path that was tried, in search order.
         searched: Vec<PathBuf>,
+        /// The underlying `PDFium` binding error.
         #[source]
         source: pdfium_render::prelude::PdfiumError,
     },
@@ -26,7 +28,12 @@ pub enum PdfError {
 
     /// The requested page index does not exist in the document.
     #[error("page {index} is out of range (document has {count} page(s))")]
-    PageOutOfRange { index: u16, count: u16 },
+    PageOutOfRange {
+        /// The page index that was requested.
+        index: u16,
+        /// The document's actual page count.
+        count: u16,
+    },
 
     /// A render was requested with a nonsensical DPI/dimension.
     #[error("invalid render dimensions: {0}")]
@@ -58,7 +65,9 @@ pub enum PdfError {
     /// yet (dropdowns, list boxes, radio groups).
     #[error("field \"{name}\" is a {kind:?} field, which cannot be filled with this value")]
     UnsupportedFieldFill {
+        /// The field's name.
         name: String,
+        /// The field's actual kind.
         kind: crate::forms::FieldKind,
     },
 
@@ -73,4 +82,24 @@ pub enum PdfError {
     /// A signature placement was requested with a nonsensical position or size.
     #[error("invalid signature placement: {0}")]
     InvalidSignaturePlacement(String),
+
+    /// [`crate::pages::merge`] or [`crate::pages::split`] was given an empty
+    /// or otherwise nonsensical set of documents/page ranges.
+    #[error("invalid page range: {0}")]
+    InvalidPageRange(String),
+
+    /// [`crate::pages::reorder`] was given a page list that isn't exactly a
+    /// permutation of the document's existing pages.
+    #[error("invalid page order: {0}")]
+    InvalidPageOrder(String),
+
+    /// [`crate::editor::replace_text`] found no occurrence of the search
+    /// text on the given page.
+    #[error("no occurrence of {find:?} found on page {page}")]
+    TextNotFound {
+        /// The page that was searched.
+        page: u16,
+        /// The search text that wasn't found.
+        find: String,
+    },
 }
