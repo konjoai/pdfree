@@ -1,4 +1,4 @@
-# pdfree-core API (Phase 0)
+# pdfree-core API (Phase 0 + 1)
 
 The engine works on **bytes**, not file paths, so the identical code path runs on
 native platforms and in the browser (where there is no filesystem). Convenience
@@ -39,6 +39,55 @@ let doc = pdfree_core::open_document("contract.pdf")?;
 let png = pdfree_core::render_page(&doc, 0, &RenderOptions::default())?; // default 150 DPI
 ```
 
+## Forms: reading and filling `AcroForm` fields
+
+```rust
+use pdfree_core::forms::{self, FieldKind, FillValue};
+
+// Enumerate every interactive field with its kind and current value.
+let fields = forms::fields(&pdf_bytes)?;
+for f in &fields {
+    println!("{:?} {} = {:?}", f.kind, f.name, f.value);
+}
+
+// Fill by field name. Every name must exist and must pair with a FillValue
+// its kind accepts, or the call errors instead of silently dropping it.
+let filled: Vec<u8> = forms::fill(
+    &pdf_bytes,
+    &[
+        ("topmostSubform[0].Page1[0].f1_01[0]".to_string(), FillValue::Text("Wesley".into())),
+        ("topmostSubform[0].Page1[0].c1_1[0]".to_string(), FillValue::Checkbox(true)),
+    ],
+)?;
+```
+
+`FillValue` is scoped to what `pdfium-render` 0.8 actually exposes a setter
+for: `Text(String)` and `Checkbox(bool)`. Dropdowns, list boxes, radio button
+groups, and signature fields are readable via `forms::fields` (their
+`FieldKind` and current value come back fine) but not writable through
+`forms::fill` — that call returns `PdfError::UnsupportedFieldFill { name, kind }`
+rather than silently no-opping. See `CLAUDE.md`'s Phase 1 entry for why.
+
+## Overlaying text on a non-interactive PDF
+
+For a PDF with no `AcroForm` at all — a plain scanned form, a flat template —
+stamp text directly onto the page instead:
+
+```rust
+use pdfree_core::forms::{self, TextOverlay};
+
+let stamped = forms::overlay_text(
+    &pdf_bytes,
+    &[TextOverlay {
+        page: 0,
+        x: 72.0,          // PDF points from the left edge
+        y: 700.0,         // PDF points from the bottom edge
+        text: "Jane Doe".to_string(),
+        font_size: 12.0,
+    }],
+)?;
+```
+
 ## Errors
 
 All fallible calls return `pdfree_core::Result<T>` (`Err` is `PdfError`):
@@ -49,8 +98,11 @@ All fallible calls return `pdfree_core::Result<T>` (`Err` is `PdfError`):
 | `Pdfium(..)` | PDFium reported an error opening/working with the document |
 | `PageOutOfRange { index, count }` | Requested a page that doesn't exist |
 | `InvalidRenderTarget(..)` | Non-positive DPI, or a render that would exceed the pixel-size guard |
+| `UnknownFormField(name)` | `forms::fill` was asked to fill a name not present in the document |
+| `UnsupportedFieldFill { name, kind }` | `forms::fill` was asked to fill a field with a value kind it can't accept (wrong value type, or a dropdown/list-box/radio/signature field) |
+| `InvalidOverlay(..)` | `forms::overlay_text` given a non-positive/non-finite `font_size` |
 | `Io(..)` / `Image(..)` | Filesystem or PNG-encoding failure |
-| `NotImplemented(name)` | A later-phase module (`forms`, `signatures`, …) called before it's built |
+| `NotImplemented(name)` | A later-phase module (`editor`, `signatures`, …) called before it's built |
 
 ## PDFium binding
 
@@ -59,6 +111,6 @@ then `vendor/pdfium/`, then the system path. See `docs/pdfium-bundling.md`.
 
 ## Later phases
 
-`forms`, `editor`, `signatures`, `annotations`, `pages`, and `convert` are present
-as scaffolds and currently return `PdfError::NotImplemented`. Their signatures are
-the intended shape; Phases 1–3 fill in the bodies.
+`editor`, `signatures`, `annotations`, `pages`, and `convert` are present as
+scaffolds and currently return `PdfError::NotImplemented`. Their signatures are
+the intended shape; Phases 2–3 fill in the bodies.

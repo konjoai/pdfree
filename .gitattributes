@@ -1,0 +1,6 @@
+# PDF fixtures are binary. Without this, git's content heuristic can
+# misclassify a small/hand-built PDF as text (no NUL byte in the first few KB)
+# and inline raw bytes into `git diff` output instead of "Binary files differ" —
+# which then crashes any tool that decodes the diff as UTF-8 (e.g. konjo-gates'
+# diff-scoping step). Always treat PDFs as binary, regardless of content.
+*.pdf binary

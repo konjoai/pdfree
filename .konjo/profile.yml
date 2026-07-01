@@ -5,6 +5,16 @@
 # .pre-commit-config.yaml, .github/workflows/konjo-gate.yml and ci.yml, .konjo/deny.toml,
 # scripts/, docs/). Fields are confirmed against that state unless marked UNVERIFIED.
 #
+# STATUS: at KIBAN_REF v1.1.0, the repo-native gates this profile declares
+# (format_lint's fmt-check/clippy, contract_gates' cargo-deny, mutation's
+# cargo-mutants) all fail instantly inside `konjo-gates` (~0.2s total, even with
+# every tool confirmed installed and on PATH) with no detail beyond "net-new
+# findings" — not consistent with the tools actually running. Suspected kiban-side
+# bug in this pack/profile shape's repo-native gate invocation, not a real finding
+# in this repo. The gates job is temporarily continue-on-error in
+# .github/workflows/konjo-gates.yml until this is understood upstream; the fields
+# below are otherwise still the intended target state.
+#
 # PDFree is a pure-Rust PDF toolkit: a core engine (crates/pdfree-core) over PDFium via
 # pdfium-render, an AI layer (crates/pdfree-ai), and two binding surfaces — UniFFI
 # (crates/pdfree-ffi) and wasm-bindgen (crates/pdfree-wasm). PDFium is loaded dynamically at
