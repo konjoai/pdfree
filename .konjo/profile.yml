@@ -1,0 +1,105 @@
+# .konjo/profile.yml
+# PDFree's Konjo profile. The CI plane installs the pinned kiban distribution (see
+# .konjo/kiban.ref and .github/workflows/konjo-gates.yml) and runs `konjo-gates` against this
+# profile. The profile is reconciled against this repo's real state (Cargo.toml workspace,
+# .pre-commit-config.yaml, .github/workflows/konjo-gate.yml and ci.yml, .konjo/deny.toml,
+# scripts/, docs/). Fields are confirmed against that state unless marked UNVERIFIED.
+#
+# PDFree is a pure-Rust PDF toolkit: a core engine (crates/pdfree-core) over PDFium via
+# pdfium-render, an AI layer (crates/pdfree-ai), and two binding surfaces — UniFFI
+# (crates/pdfree-ffi) and wasm-bindgen (crates/pdfree-wasm). PDFium is loaded dynamically at
+# runtime (never linked at build time, never committed); see docs/pdfium-bundling.md.
+
+repo: pdfree
+
+# Confirmed: Cargo.toml is a workspace (pdfree-core, pdfree-ai, pdfree-ffi, pdfree-wasm).
+# There is no Python, TypeScript, or Mojo source in this repo, so the stack is Rust-only.
+stack:
+  - rust
+
+packs:
+  - lang/rust
+
+# Confirmed from .github/workflows/konjo-gate.yml G1 (cargo fmt --check; clippy with
+# -D warnings -D pedantic -D unwrap_used -D expect_used -D panic -D todo -D dbg_macro). The
+# core library is already unwrap/expect/panic-free. No Python linters apply (no Python source).
+format_lint:
+  - fmt-check
+  - clippy
+
+# Confirmed from konjo-gate.yml. cargo-deny reads .konjo/deny.toml; cargo-audit is the advisory
+# scan; G2 is an 80% line-coverage gate (cargo llvm-cov nextest --fail-under-lines 80); G4
+# enforces complexity (cognitive_complexity), the 500-line file-size limit, the dry_check.py
+# duplicate-block gate, and rustdoc missing_docs. unsafe-budget is the kiban-native gate: a net
+# rise in unsafe blocks with no safety comment fails. PDFree uses no `unsafe` today, so the
+# budget starts at zero.
+contract_gates:
+  - cargo-deny           # G1: cargo deny check --config .konjo/deny.toml
+  - cargo-audit          # G1: advisory scan
+  - coverage-80          # G2: cargo llvm-cov nextest --fail-under-lines 80
+  - complexity           # G4: cognitive_complexity (Rust)
+  - file-size-500        # G4: 500-line hard limit per source file
+  - dry                  # G4: dry_check.py, threshold 0.85
+  - rustdoc              # G4: RUSTDOCFLAGS="-D missing_docs"
+  - unsafe-budget        # kiban-native, diff-only
+
+# Confirmed from konjo-gate.yml G3: `cargo mutants --in-diff`.
+mutation: cargo-mutants
+
+# kiban-native review lanes for this stack. The whole codebase is Rust, so the lang/rust lanes
+# carry the risk: the clippy config already bans unwrap/expect/panic (the mechanical half of
+# error-handling); ownership-lifetimes and perf-alloc matter because the core hands raw PDF
+# bytes and rendered image buffers across the FFI/WASM boundary; concurrency and api-surface are
+# the shared _base lanes (api-surface guards the frozen pdfree.udl and the wasm-bindgen surface).
+# red-team is appended automatically.
+# Order matters: the red-team lane embeds the other lanes' findings in this order, and the
+# cassette key depends on it. api-surface is listed last so, filtered by scope, the Rust
+# worker sequence matches its recorded corpus order:
+#   Rust diff -> [ownership-lifetimes, error-handling, perf-alloc, concurrency, api-surface]
+specialists:
+  - ownership-lifetimes
+  - error-handling
+  - perf-alloc
+  - concurrency
+  - api-surface
+
+# The perf prove gate. PDFree's headline latency metric is page-render time (open a PDF, render
+# a page to PNG at a fixed DPI), lower is better. Held OFF until a baseline is captured on real
+# bench hardware, per the house rule that the "what counts as a real win" threshold must be
+# measured, not invented. While inert, konjo-prove refuses a verdict (NOT ACTIVATED, exit 3) and
+# the CI prove gate keeps blocking perf-labeled changes; it never passes a perf change silently.
+prove:
+  enabled: true
+  baseline: null                      # capture once a bench host + fixture corpus are pinned
+  metric: "render_ms"                 # median page-render time at a fixed DPI
+  unit: "ms"
+  lower_is_better: true
+  run_floor: 30
+  min_effect_pct: null                # PENDING: measure jitter on the bench host, then confirm
+  perf_globs:
+    - "crates/pdfree-core/**"
+  bench_cmd: null                     # PENDING: a criterion bench over the fixture corpus
+  activation_checklist:
+    - "Pin a bench host and a fixed render fixture corpus (real PDFs: an IRS form, a contract, a scanned doc), and a fixed DPI so render_ms is compared like-for-like."
+    - "Add a criterion bench (crates/pdfree-core/benches/) that renders the corpus and emits paired render_ms measurements; set bench_cmd to it."
+    - "Run it enough times that >= 30 paired render_ms measurements accumulate."
+    - "Measure run-to-run jitter (coefficient of variation, or MAD as a percent of the median)."
+    - "Set min_effect_pct above that noise floor, then confirm the number here."
+    - "Capture the golden: konjo-prove baseline capture --tag <tag> --results baseline.json"
+
+killtest: true
+
+# Confirmed from konjo-gate.yml G2: tests run via cargo-nextest across the workspace. The render
+# integration tests skip gracefully when PDFium is absent, so this is safe with or without the
+# vendored library; CI fetches it first (scripts/fetch-pdfium.sh) so the tests run for real.
+verify_cmd: "cargo nextest run --workspace"
+
+# Confirmed from konjo-gate.yml G1 (`cargo fmt --all`).
+format_cmd: "cargo fmt --all"
+
+# The eval corpus for this repo: the Rust planted-bug fixtures (PDFree's only reviewed surface).
+# Scopes the meta-gate so the PDFree self-test runs only its own corpus.
+eval_corpus:
+  - rust
+
+overrides: {}
