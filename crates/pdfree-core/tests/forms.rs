@@ -4,6 +4,10 @@
 //! Like `tests/render.rs`, these skip with a notice (rather than fail) when
 //! `PDFium` isn't bundled, so a bare checkout still builds green. Run
 //! `scripts/fetch-pdfium.sh` first to make them exercise `PDFium` for real.
+//!
+//! Test code may `unwrap`/`expect` freely (see `.github/copilot-instructions.md`)
+//! — the production-code ban only applies to `pdfree-core`'s library surface.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use pdfree_core::error::PdfError;
 use pdfree_core::forms::{self, FieldKind, FillValue, TextOverlay};
@@ -175,17 +179,17 @@ fn overlay_rejects_an_out_of_range_page() {
     );
 }
 
+// The 1040 is a real-world AcroForm: 199 fields with generated names
+// (f1_01[0], c1_1[0], …) inside repeating subform containers, unlike the
+// hand-built fixture above. First and last name plus a checkbox is
+// representative of the "smart form fill" use case from the project spec.
+const FIRST_NAME: &str = "topmostSubform[0].Page1[0].f1_01[0]";
+const LAST_NAME: &str = "topmostSubform[0].Page1[0].f1_02[0]";
+const DIGITAL_ASSETS_YES: &str = "topmostSubform[0].Page1[0].c1_1[0]";
+
 #[test]
 fn fills_a_real_irs_form_1040_and_field_values_persist() {
     skip_without_pdfium!();
-
-    // The 1040 is a real-world AcroForm: 199 fields with generated names
-    // (f1_01[0], c1_1[0], …) inside repeating subform containers, unlike the
-    // hand-built fixture above. First and last name plus a checkbox is
-    // representative of the "smart form fill" use case from the project spec.
-    const FIRST_NAME: &str = "topmostSubform[0].Page1[0].f1_01[0]";
-    const LAST_NAME: &str = "topmostSubform[0].Page1[0].f1_02[0]";
-    const DIGITAL_ASSETS_YES: &str = "topmostSubform[0].Page1[0].c1_1[0]";
 
     let found = forms::fields(IRS_F1040).expect("enumerate real-world fields");
     assert!(

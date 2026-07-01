@@ -1,17 +1,21 @@
 //! Phase 0 acceptance tests: open a real PDF and render a page to PNG.
 //!
-//! These exercise the full PDFium path. When the PDFium shared library is not
+//! These exercise the full `PDFium` path. When the `PDFium` shared library is not
 //! bundled (see `docs/pdfium-bundling.md` / `scripts/fetch-pdfium.sh`), the
 //! rendering tests print a skip notice and pass, so a checkout without the
 //! binary still builds green. Run `scripts/fetch-pdfium.sh` first to make them
 //! render for real.
+//!
+//! Test code may `unwrap`/`expect` freely (see `.github/copilot-instructions.md`)
+//! — the production-code ban only applies to `pdfree-core`'s library surface.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use pdfree_core::error::PdfError;
 use pdfree_core::{Document, RenderOptions};
 
 const SAMPLE: &[u8] = include_bytes!("fixtures/sample.pdf");
 
-/// True when PDFium can be loaded, so render tests should actually run.
+/// True when `PDFium` can be loaded, so render tests should actually run.
 fn pdfium_available() -> bool {
     pdfree_core::pdfium::bind().is_ok()
 }
