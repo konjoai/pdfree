@@ -1,0 +1,19 @@
+[package]
+name = "pdfree-core"
+description = "PDFree PDF engine — parse, render, edit, form-fill, sign, and convert PDFs."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+pdfium-render.workspace = true
+image.workspace = true
+thiserror.workspace = true
+log.workspace = true
+
+[dev-dependencies]
+# Used by the integration tests to decode the rendered PNG and assert on it.
+image = { workspace = true }

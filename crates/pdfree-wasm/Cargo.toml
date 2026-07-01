@@ -1,0 +1,20 @@
+[package]
+name = "pdfree-wasm"
+description = "PDFree WebAssembly bindings — pdfree-core for the browser via wasm-bindgen."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pdfree-core = { path = "../pdfree-core" }
+wasm-bindgen = "0.2"
+
+# NOTE: a real wasm32 build additionally needs `pdfium-render`'s `wasm` feature
+# and a JS-side PDFium module (see docs/pdfium-bundling.md). On native targets
+# this crate compiles as a plain wrapper, which is what Phase 0 verifies.

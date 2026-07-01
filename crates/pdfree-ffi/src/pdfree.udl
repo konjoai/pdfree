@@ -1,0 +1,36 @@
+// UniFFI interface definition for the PDFree native bridge.
+//
+// This is the interface contract the Apple (Swift) and Android (Kotlin) shells
+// bind against. The matching Rust implementation lives in `lib.rs`. Phase 4
+// wires up `uniffi::generate_scaffolding` / `include_scaffolding!` and the
+// `uniffi-bindgen` codegen step; the shape is frozen here so that work is
+// mechanical.
+
+namespace pdfree {
+    // Library + PDFree version string, e.g. "pdfree-core 0.0.1".
+    string version();
+};
+
+[Error]
+enum PdfFreeError {
+    "InvalidDocument",
+    "Render",
+    "NotImplemented",
+};
+
+interface PdfDocument {
+    // Load a document from raw bytes.
+    [Throws=PdfFreeError, Name=from_bytes]
+    constructor(bytes data);
+
+    // Number of pages.
+    u16 page_count();
+
+    // Metadata.
+    string? title();
+    string? author();
+
+    // Render page `index` (0-based) to PNG bytes at the given DPI.
+    [Throws=PdfFreeError]
+    bytes render_page(u16 index, u32 dpi);
+};
