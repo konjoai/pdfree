@@ -10,9 +10,17 @@
 # cargo-mutants) all failed instantly inside `konjo-gates` (~0.2s total, even with
 # every tool confirmed installed and on PATH) with no detail beyond "net-new
 # findings" — not consistent with the tools actually running. Full diagnosis in
-# docs/kiban-investigation-handoff.md. Bumped to v1.1.3 (reported to include a fix);
-# .github/workflows/konjo-gates.yml's gates job stays continue-on-error until a CI
-# run on that ref confirms the repo:* gates pass for real. The fields below are
+# docs/kiban-investigation-handoff.md.
+#
+# Bumped to v1.1.3 and verified on CI (run 28533997204, ~15 min real execution):
+# the instant-fail bug is CONFIRMED FIXED — repo:fmt-check, repo:cargo-deny, and
+# repo:unsafe-budget now pass for real. Two gates still fail, for real and distinct
+# reasons unrelated to the original bug: repo:cargo-mutants now genuinely runs and
+# found 21 real MISSED mutants (actual pdfree-core test-coverage gaps to fix);
+# repo:clippy fails on cargo's own build-completion status line being reported as a
+# "finding" (pdfree-core's clippy is independently confirmed clean elsewhere — looks
+# like a separate, narrower kiban output-parsing bug). .github/workflows/konjo-gates.yml's
+# gates job stays continue-on-error until both are resolved. The fields below are
 # otherwise still the intended target state.
 #
 # PDFree is a pure-Rust PDF toolkit: a core engine (crates/pdfree-core) over PDFium via
