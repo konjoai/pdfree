@@ -28,6 +28,7 @@
 //! [`PdfError::NotImplemented`].
 
 pub mod annotations;
+pub mod boxes;
 pub mod convert;
 pub mod document;
 pub mod editor;

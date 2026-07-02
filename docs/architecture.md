@@ -24,7 +24,7 @@ it. There is no per-platform PDF code — only per-platform UI.
 |---|---|---|
 | `pdfree-core` | The engine. Pure Rust, no platform code. Works on bytes. | Phase 0: `document` + `renderer` live; other modules scaffolded |
 | `pdfree-ai` | Provider-agnostic AI/ML layer. Local-first, cloud-opt-in. | Scaffolded (Phases 5–7) |
-| `pdfree-ffi` | UniFFI wrapper → Swift/Kotlin. Interface frozen in `pdfree.udl`. | Wrapper live; codegen in Phase 4 |
+| `pdfree-ffi` | UniFFI wrapper → Swift/Kotlin. Proc-macro mode (`#[uniffi::export]`, no `.udl`) — the interface is derived from `src/lib.rs` and covers the full Phase 0–3 `pdfree-core` surface. | Phase 4: codegen wired, macOS app scaffolded (`apps/macos/`) |
 | `pdfree-wasm` | wasm-bindgen wrapper → JS/React. | Thin wrapper live; wasm32 build in Phase 4 |
 
 ## Key design decisions

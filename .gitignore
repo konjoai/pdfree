@@ -36,6 +36,11 @@ apps/web/src/wasm/
 # macOS
 .DS_Store
 
+# Generated UniFFI Swift bindings and Xcode project — regenerate with
+# scripts/build-macos.sh + `xcodegen generate` (see apps/macos/project.yml).
+apps/macos/Sources/Bridge/
+apps/macos/PDFree.xcodeproj/
+
 # Python bytecode (Konjo scripts)
 __pycache__/
 *.pyc

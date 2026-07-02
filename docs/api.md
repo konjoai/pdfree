@@ -195,6 +195,61 @@ let pdf: Vec<u8> = convert::from_image(&png_bytes, 96.0)?;  // dpi controls the 
 document layout engine this workspace doesn't have yet. See `CLAUDE.md`'s
 open questions.
 
+## Boxes: detecting every fillable box on a page (Phase 4 add-on)
+
+Scanned or flattened forms often draw each fillable box as a stroked
+rectangle, or a table's cell borders as ruled lines — sometimes a fully
+closed rectangle, sometimes just side dividers with no top or bottom rule at
+all (very common: a labeled blank gets dividers but the box would be
+visually redundant with the row above/below) — instead of a real `AcroForm`
+field. `boxes::boxes_on_page` looks at the page's vector graphics (not text,
+not form fields) to reconstruct every such box at once, meant to be called
+as a page loads so a shell can highlight every fillable area up front:
+
+```rust
+use pdfree_core::boxes;
+
+for found in boxes::boxes_on_page(&pdf_bytes, 0)? {
+    // found.x/y/width/height are in PDF points — hand them straight to
+    // forms::overlay_text as the place to stamp typed text.
+}
+```
+
+`boxes::box_at_point(&pdf_bytes, page, x, y)` is a convenience wrapper for a
+single point-driven lookup (e.g. a manual click that isn't inside any
+already-scanned box) — it's `boxes_on_page` filtered down to the smallest
+box enclosing that point.
+
+Detection runs three tiers, each skipping anything that duplicates a box a
+higher tier already found:
+
+1. **Closed cells** — four rulings (or ruling-clusters, since one visual
+   line is often drawn as several abutting strokes) that together bound a
+   rectangle. Most reliable: every side is confirmed by an actual line.
+2. **Open cells** — a pair of adjacent vertical dividers that both meet the
+   same horizontal ruling but have nothing closing the far side (the
+   "labeled blank with side dividers, no box" case above).
+3. **Lone rectangles** — a single stroked rectangle path not part of any
+   grid (standalone checkboxes, signature boxes).
+
+Two implementation details worth knowing if this ever needs revisiting:
+
+- `pdfium-render`'s `PdfPagePathObjectSegments` yields each segment's
+  **untransformed, raw** coordinates — real-world PDFs routinely place a
+  path via a non-identity object matrix (translation at minimum), so this
+  code always applies `path.matrix()` via `.segments().transform(matrix)`
+  before reading points. Skipping that step silently reads every line's
+  position wrong (confirmed against a real IRS 1040: reading raw segments
+  found only small unrelated boxes and missed the entire ruled-line grid).
+- When pairing "adjacent" dividers to form a cell, adjacency must be judged
+  only among the dividers relevant to the row/column in question (their
+  spans must actually reach that row's y-range, or touch that ruling's y).
+  Pairing by raw x-order across the *whole page* pairs dividers from
+  unrelated rows whenever their x positions happen to interleave — a real
+  bug hit while building this, not a hypothetical.
+Returns `None` if neither strategy finds an enclosing box — the caller
+decides the fallback (a fixed-size overlay, typically).
+
 ## Errors
 
 All fallible calls return `pdfree_core::Result<T>` (`Err` is `PdfError`):
@@ -230,8 +285,9 @@ public entry point.
 
 ## Status
 
-Phases 0–3 are complete. `pdfree-core`'s only remaining deliberate gaps are
-`signatures::sign_with_certificate` (PKCS#12) and `convert::to_docx`/
-`from_docx` — both `PdfError::NotImplemented` pending open decisions in
-`CLAUDE.md`, not missing engineering. Phase 4 (platform shells) and Phases
-5–7 (`pdfree-ai`) are next.
+Phases 0–3 are complete, plus a Phase 4 add-on (`boxes::box_at_point`) driven
+by the macOS app's double-click-to-fill-a-box feature. `pdfree-core`'s only
+remaining deliberate gaps are `signatures::sign_with_certificate` (PKCS#12)
+and `convert::to_docx`/`from_docx` — both `PdfError::NotImplemented` pending
+open decisions in `CLAUDE.md`, not missing engineering. The rest of Phase 4
+(platform shells) and Phases 5–7 (`pdfree-ai`) are next.

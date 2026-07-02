@@ -17,3 +17,10 @@ name = "pdfree_ffi"
 [dependencies]
 pdfree-core = { path = "../pdfree-core" }
 thiserror.workspace = true
+# "cli" pulls in the uniffi-bindgen machinery so `cargo run --bin
+# uniffi-bindgen` can generate Swift bindings locally — no global install.
+uniffi = { workspace = true, features = ["cli"] }
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
