@@ -311,10 +311,15 @@ protects against competitors wrapping it as a SaaS.
       questions below rather than guessed at.
 
 ### Phase 4 — Platform Shells
-- [ ] `renderer.rs`: add a `fit_to_page()` helper (pure math: page size in
+- [x] `renderer.rs`: add a `fit_to_page()` helper (pure math: page size in
       points + viewport size in pixels → `RenderOptions`/DPI) so every shell
       computes the default fit-to-page zoom identically instead of each
-      platform back-computing it separately
+      platform back-computing it separately. Paired with a new
+      `Document::page_size`/`renderer::page_size_points` so a shell can read
+      a page's PDF-point dimensions without rendering it first (avoids a
+      render-to-discover-size chicken/egg). Exposed over FFI as
+      `PdfDocument.pageSize(index:)` and the free function
+      `fitToPageDpi(pageWidthPts:pageHeightPts:viewportWidthPx:viewportHeightPx:)`.
 - [x] Wire UniFFI codegen for `pdfree-ffi` — migrated to proc-macro mode
       (`#[uniffi::export]` on `src/lib.rs` directly; the old hand-maintained
       `pdfree.udl` is deleted so the interface can't drift from the Rust code).
@@ -386,8 +391,16 @@ protects against competitors wrapping it as a SaaS.
       issue, not a code problem).
 - [ ] **UX fixes from 2026-07-01 review** (see Core UX Principles above for
       full rationale) — these should land before further platform-shell work:
-  - [ ] Fix default zoom to fit-whole-page on load and on resize (currently
-        opens zoomed in — confirmed bug against IRS 1040 test doc)
+  - [x] Fix default zoom to fit-whole-page on load and on resize — the
+        macOS canvas now measures its available area with a `GeometryReader`
+        (`ContentView.canvasArea`) and calls `PDFDocumentStore.updateViewport`
+        on appear and on every size change; the store re-renders the current
+        page at the DPI from `fitToPageDpi` (backed by the new
+        `renderer::fit_to_page`) instead of a fixed 150 DPI. Verified against
+        the IRS 1040 test doc at several window sizes — whole page visible,
+        no scrollbar, no clipping, box overlays stay aligned since gesture
+        coordinates are still derived from the same rendered image's own
+        pixel size (`pagePointSize`).
   - [ ] Auto-run `boxes_on_page` + AcroForm field scan on load for *every*
         page up front (already partially done — extend so no field is left
         for manual double-click placement as the primary flow). Depends on

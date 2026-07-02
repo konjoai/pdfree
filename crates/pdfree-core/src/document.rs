@@ -94,6 +94,15 @@ impl Document {
         renderer::render_page_to_png(&self.bytes, index, options)
     }
 
+    /// Page `index`'s size in PDF points (72/inch), without rendering it.
+    ///
+    /// # Errors
+    ///
+    /// Propagates any error from [`renderer::page_size_points`].
+    pub fn page_size(&self, index: u16) -> Result<(f32, f32)> {
+        renderer::page_size_points(&self.bytes, index)
+    }
+
     /// Save the document to disk, preserving the original bytes exactly.
     ///
     /// Phase 0 is read + render only, so saving is a byte-for-byte write.

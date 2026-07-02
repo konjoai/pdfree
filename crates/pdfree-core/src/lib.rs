@@ -41,7 +41,7 @@ pub mod signatures;
 
 pub use document::{Document, Metadata};
 pub use error::{PdfError, Result};
-pub use renderer::RenderOptions;
+pub use renderer::{fit_to_page, RenderOptions};
 
 /// Convenience: open a document from a file path.
 ///

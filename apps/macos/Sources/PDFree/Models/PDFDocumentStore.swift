@@ -24,7 +24,13 @@ final class PDFDocumentStore: ObservableObject {
     @Published var fileURL: URL?
 
     private var thumbnailCache: [UInt16: NSImage] = [:]
-    private let renderDPI: Float = 150
+    /// Available canvas size, in pixels, that the current page should fit
+    /// inside — set by the canvas view via `updateViewport` on load and on
+    /// every resize (Core UX Principles: default view = whole page visible,
+    /// always). Falls back to `fallbackDPI` until the canvas reports a real
+    /// size.
+    private var viewportSize: CGSize = .zero
+    private let fallbackDPI: Float = 150
     private let thumbnailDPI: Float = 60
 
     var pageCount: UInt16 { document.pageCount() }
@@ -191,11 +197,12 @@ final class PDFDocumentStore: ObservableObject {
 
     private func renderCurrentPage() {
         do {
-            let png = try document.renderPage(index: pageIndex, dpi: UInt32(renderDPI))
+            let dpi = fitDPIForCurrentPage()
+            let png = try document.renderPage(index: pageIndex, dpi: UInt32(dpi))
             let image = NSImage(data: png)
             pageImage = image
             if let image {
-                let ptsPerPixel = CGFloat(72.0 / renderDPI)
+                let ptsPerPixel = CGFloat(72.0 / dpi)
                 pagePointSize = CGSize(
                     width: image.size.width * ptsPerPixel,
                     height: image.size.height * ptsPerPixel
@@ -205,6 +212,36 @@ final class PDFDocumentStore: ObservableObject {
             errorMessage = describe(error)
         }
         detectedBoxes = (try? boxesOnPage(pdfBytes: data, page: pageIndex)) ?? []
+    }
+
+    /// The DPI that renders the current page as large as possible while
+    /// still fitting entirely inside `viewportSize` — the engine-shared
+    /// `fitToPageDpi` math (see `renderer::fit_to_page` in `pdfree-core`),
+    /// so this shell's default zoom matches every other platform's.
+    private func fitDPIForCurrentPage() -> Float {
+        guard viewportSize.width > 0, viewportSize.height > 0,
+              let size = try? document.pageSize(index: pageIndex)
+        else { return fallbackDPI }
+
+        let dpi = fitToPageDpi(
+            pageWidthPts: size.width,
+            pageHeightPts: size.height,
+            viewportWidthPx: Float(viewportSize.width),
+            viewportHeightPx: Float(viewportSize.height)
+        )
+        return dpi > 0 ? dpi : fallbackDPI
+    }
+
+    /// Called by the canvas view on load and on every resize so the default
+    /// zoom keeps fitting the whole page in the viewport (Core UX Principles:
+    /// "never open zoomed in", "recompute on resize").
+    func updateViewport(_ size: CGSize) {
+        // Ignore no-op / negligible changes so window-drag resize doesn't
+        // re-render on every intermediate pixel.
+        guard abs(size.width - viewportSize.width) > 1 || abs(size.height - viewportSize.height) > 1
+        else { return }
+        viewportSize = size
+        renderCurrentPage()
     }
 
     private func describe(_ error: Error) -> String {

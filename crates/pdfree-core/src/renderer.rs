@@ -98,3 +98,61 @@ pub fn render_page_to_png(
     image.write_to(&mut Cursor::new(&mut png), ImageFormat::Png)?;
     Ok(png)
 }
+
+/// Page `index`'s size in PDF points (72/inch), without rendering it.
+///
+/// Cheap relative to [`render_page_to_png`] — it opens the document and reads
+/// the page's declared media box, no rasterization involved. Callers that
+/// need to fit a page to a viewport (see [`fit_to_page`]) should read the
+/// size with this first, rather than rendering once to discover it.
+///
+/// # Errors
+///
+/// Returns [`PdfError::PageOutOfRange`] for a missing page index, and
+/// propagates `PDFium` errors otherwise.
+pub fn page_size_points(pdf_bytes: &[u8], index: u16) -> Result<(f32, f32)> {
+    let pdfium = crate::pdfium::bind()?;
+    let document = pdfium.load_pdf_from_byte_slice(pdf_bytes, None)?;
+    let pages = document.pages();
+
+    let count = pages.len();
+    if index >= count {
+        return Err(PdfError::PageOutOfRange { index, count });
+    }
+
+    let page = pages.get(index)?;
+    Ok((page.width().value, page.height().value))
+}
+
+/// Pure math: given a page's size in PDF points and the available viewport
+/// size in pixels, compute the [`RenderOptions`] (i.e. the DPI) that renders
+/// the page as large as possible while still fitting entirely inside the
+/// viewport on both axes.
+///
+/// Exists so every platform shell (macOS, web, Tauri, iOS) computes the
+/// default "whole page visible" zoom identically, rather than each
+/// back-computing its own fit math — see the Core UX Principles in
+/// `CLAUDE.md` ("default view = whole page visible, always").
+///
+/// Degenerate inputs (a non-positive/non-finite page dimension or viewport
+/// dimension) fall back to [`RenderOptions::default`] rather than producing
+/// a non-finite or non-positive DPI.
+#[must_use]
+pub fn fit_to_page(
+    page_width_pts: f32,
+    page_height_pts: f32,
+    viewport_width_px: f32,
+    viewport_height_px: f32,
+) -> RenderOptions {
+    let valid = |v: f32| v.is_finite() && v > 0.0;
+    if !(valid(page_width_pts)
+        && valid(page_height_pts)
+        && valid(viewport_width_px)
+        && valid(viewport_height_px))
+    {
+        return RenderOptions::default();
+    }
+
+    let scale = (viewport_width_px / page_width_pts).min(viewport_height_px / page_height_pts);
+    RenderOptions::with_dpi(scale * POINTS_PER_INCH)
+}

@@ -114,32 +114,51 @@ struct ContentView: View {
 
     // MARK: - Canvas
 
+    /// Space reserved for `.padding()` around the page on each axis, so the
+    /// viewport size fed to fit-to-page math accounts for it — otherwise the
+    /// rendered page would be very slightly too large and require scrolling.
+    private static let canvasPadding: CGFloat = 16
+
     @ViewBuilder
     private var canvasArea: some View {
-        if let image = store.pageImage {
-            ScrollView([.horizontal, .vertical]) {
-                PageCanvasView(
-                    image: image,
-                    pagePointSize: store.pagePointSize,
-                    tool: tool,
-                    detectedBoxes: store.detectedBoxes,
-                    onTap: handleTap,
-                    onDrag: handleDrag,
-                    onDoubleTap: handleDoubleTap,
-                    inlineEditBox: inlineEditBox,
-                    inlineEditText: $inlineEditText,
-                    onCommitInlineEdit: commitInlineEdit,
-                    onCancelInlineEdit: cancelInlineEdit
-                )
-                .padding()
+        GeometryReader { geo in
+            Group {
+                if let image = store.pageImage {
+                    ScrollView([.horizontal, .vertical]) {
+                        PageCanvasView(
+                            image: image,
+                            pagePointSize: store.pagePointSize,
+                            tool: tool,
+                            detectedBoxes: store.detectedBoxes,
+                            onTap: handleTap,
+                            onDrag: handleDrag,
+                            onDoubleTap: handleDoubleTap,
+                            inlineEditBox: inlineEditBox,
+                            inlineEditText: $inlineEditText,
+                            onCommitInlineEdit: commitInlineEdit,
+                            onCancelInlineEdit: cancelInlineEdit
+                        )
+                        .padding(Self.canvasPadding)
+                    }
+                } else {
+                    VStack {
+                        Spacer()
+                        ProgressView("Loading…")
+                        Spacer()
+                    }
+                }
             }
-        } else {
-            VStack {
-                Spacer()
-                ProgressView("Loading…")
-                Spacer()
-            }
+            .onAppear { updateViewport(geo.size) }
+            .onChange(of: geo.size) { updateViewport($0) }
         }
+    }
+
+    private func updateViewport(_ size: CGSize) {
+        let usable = CGSize(
+            width: max(size.width - Self.canvasPadding * 2, 0),
+            height: max(size.height - Self.canvasPadding * 2, 0)
+        )
+        store.updateViewport(usable)
     }
 
     private func handleTap(_ point: CGPoint) {

@@ -16,6 +16,13 @@ use pdfree_core::{
     annotations, boxes, convert, editor, forms, pages, signatures, Document, RenderOptions,
 };
 
+/// A page's size in PDF points (72/inch).
+#[derive(Debug, Clone, Copy, uniffi::Record)]
+pub struct PageSize {
+    pub width: f32,
+    pub height: f32,
+}
+
 /// Errors crossing the FFI boundary. `flat_error` means Swift only sees each
 /// variant's message (via `Display`), not its payload shape — simplest thing
 /// that lets every `pdfree_core::PdfError` variant map over without also
@@ -102,6 +109,36 @@ impl PdfDocument {
             .render_page(index, &RenderOptions::with_dpi(dpi as f32))?;
         Ok(png)
     }
+
+    /// Page `index`'s size in PDF points (72/inch), without rendering it.
+    /// Pair with [`fit_to_page_dpi`] to compute a default zoom that fits the
+    /// whole page in a shell's viewport before ever rendering it.
+    pub fn page_size(&self, index: u16) -> Result<PageSize, PdfFreeError> {
+        let (width, height) = self.inner.page_size(index)?;
+        Ok(PageSize { width, height })
+    }
+}
+
+/// The DPI that renders a `page_width_pts` × `page_height_pts` page as large
+/// as possible while still fitting entirely inside a
+/// `viewport_width_px` × `viewport_height_px` viewport — the shared "default
+/// view = whole page visible" math every platform shell should use (see
+/// Core UX Principles in `CLAUDE.md`), so the fit is computed identically on
+/// macOS, web, Tauri, and iOS instead of each back-computing its own.
+#[uniffi::export]
+pub fn fit_to_page_dpi(
+    page_width_pts: f32,
+    page_height_pts: f32,
+    viewport_width_px: f32,
+    viewport_height_px: f32,
+) -> f32 {
+    pdfree_core::fit_to_page(
+        page_width_pts,
+        page_height_pts,
+        viewport_width_px,
+        viewport_height_px,
+    )
+    .dpi
 }
 
 // ---------------------------------------------------------------------------

@@ -95,3 +95,63 @@ fn render_rejects_invalid_dpi() {
         "got {err:?}"
     );
 }
+
+#[test]
+fn page_size_reports_points_without_rendering() {
+    skip_without_pdfium!();
+
+    let doc = Document::from_bytes(SAMPLE.to_vec(), None).unwrap();
+    let (width, height) = doc.page_size(0).expect("page 0 size");
+    assert!((width - 612.0).abs() < 0.5, "width = {width}");
+    assert!((height - 792.0).abs() < 0.5, "height = {height}");
+}
+
+#[test]
+fn page_size_rejects_out_of_range_page() {
+    skip_without_pdfium!();
+
+    let doc = Document::from_bytes(SAMPLE.to_vec(), None).unwrap();
+    let err = doc.page_size(9).expect_err("page 9 does not exist");
+    assert!(
+        matches!(err, PdfError::PageOutOfRange { index: 9, count: 2 }),
+        "got {err:?}"
+    );
+}
+
+#[test]
+fn fit_to_page_picks_the_binding_axis() {
+    // A US Letter page (612x792pt, portrait) fit into a wide, short viewport
+    // is height-bound: the width could grow more before hitting the edge, so
+    // the page must be scaled to exactly fill the viewport's height.
+    let wide_short = pdfree_core::fit_to_page(612.0, 792.0, 2000.0, 792.0);
+    assert!(
+        (wide_short.dpi - 72.0).abs() < 0.01,
+        "got {}",
+        wide_short.dpi
+    );
+
+    // The same page in a narrow, tall viewport is width-bound.
+    let narrow_tall = pdfree_core::fit_to_page(612.0, 792.0, 612.0, 3000.0);
+    assert!(
+        (narrow_tall.dpi - 72.0).abs() < 0.01,
+        "got {}",
+        narrow_tall.dpi
+    );
+
+    // Shrink both axes by half: DPI should halve from the 72-per-point baseline.
+    let half = pdfree_core::fit_to_page(612.0, 792.0, 306.0, 396.0);
+    assert!((half.dpi - 36.0).abs() < 0.01, "got {}", half.dpi);
+}
+
+#[test]
+fn fit_to_page_falls_back_on_degenerate_input() {
+    let default_dpi = RenderOptions::default().dpi;
+    for bad in [0.0, -1.0, f32::NAN, f32::INFINITY] {
+        let opts = pdfree_core::fit_to_page(bad, 792.0, 1000.0, 1000.0);
+        assert!(
+            (opts.dpi - default_dpi).abs() < 0.01,
+            "page_width_pts = {bad} should fall back to default, got {}",
+            opts.dpi
+        );
+    }
+}
