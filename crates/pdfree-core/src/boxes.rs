@@ -167,7 +167,15 @@ pub fn boxes_on_page(pdf_bytes: &[u8], page: u16) -> Result<Vec<DetectedBox>> {
             {
                 continue;
             }
-            push_if_new(&mut boxes, page, *x_left, *y_bottom, x_right - x_left, y_top - y_bottom, max_area);
+            push_if_new(
+                &mut boxes,
+                page,
+                *x_left,
+                *y_bottom,
+                x_right - x_left,
+                y_top - y_bottom,
+                max_area,
+            );
         }
     }
 
@@ -182,7 +190,8 @@ pub fn boxes_on_page(pdf_bytes: &[u8], page: u16) -> Result<Vec<DetectedBox>> {
         let relevant: Vec<&(f32, Vec<(f32, f32)>)> = v_rulings
             .iter()
             .filter(|(_, vspans)| {
-                ruling_end_at(vspans, *y, true).is_some() || ruling_end_at(vspans, *y, false).is_some()
+                ruling_end_at(vspans, *y, true).is_some()
+                    || ruling_end_at(vspans, *y, false).is_some()
             })
             .collect();
         for pair in relevant.windows(2) {
@@ -194,19 +203,37 @@ pub fn boxes_on_page(pdf_bytes: &[u8], page: u16) -> Result<Vec<DetectedBox>> {
 
             // Dividers rising above this ruling (open-top: box sits above
             // the line, e.g. a labeled blank with side dividers).
-            if let (Some(top_l), Some(top_r)) =
-                (ruling_end_at(left_spans, *y, true), ruling_end_at(right_spans, *y, true))
-            {
+            if let (Some(top_l), Some(top_r)) = (
+                ruling_end_at(left_spans, *y, true),
+                ruling_end_at(right_spans, *y, true),
+            ) {
                 let top = top_l.min(top_r);
-                push_if_new(&mut boxes, page, *x_left, *y, x_right - x_left, top - y, max_area);
+                push_if_new(
+                    &mut boxes,
+                    page,
+                    *x_left,
+                    *y,
+                    x_right - x_left,
+                    top - y,
+                    max_area,
+                );
             }
 
             // Dividers hanging below this ruling (open-bottom).
-            if let (Some(bot_l), Some(bot_r)) =
-                (ruling_end_at(left_spans, *y, false), ruling_end_at(right_spans, *y, false))
-            {
+            if let (Some(bot_l), Some(bot_r)) = (
+                ruling_end_at(left_spans, *y, false),
+                ruling_end_at(right_spans, *y, false),
+            ) {
                 let bottom = bot_l.max(bot_r);
-                push_if_new(&mut boxes, page, *x_left, bottom, x_right - x_left, y - bottom, max_area);
+                push_if_new(
+                    &mut boxes,
+                    page,
+                    *x_left,
+                    bottom,
+                    x_right - x_left,
+                    y - bottom,
+                    max_area,
+                );
             }
         }
     }
@@ -242,7 +269,11 @@ pub fn box_at_point(pdf_bytes: &[u8], page: u16, x: f32, y: f32) -> Result<Optio
     Ok(boxes
         .into_iter()
         .filter(|b| b.contains(x, y))
-        .min_by(|a, b| a.area().partial_cmp(&b.area()).unwrap_or(std::cmp::Ordering::Equal)))
+        .min_by(|a, b| {
+            a.area()
+                .partial_cmp(&b.area())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }))
 }
 
 /// Walk a path's segments, recording any `LineTo` whose endpoints are
@@ -318,7 +349,9 @@ fn merge_spans(mut spans: Vec<(f32, f32)>) -> Vec<(f32, f32)> {
 /// — i.e. the ruled line actually runs across this candidate cell edge,
 /// rather than just existing somewhere on the same coordinate.
 fn ruling_spans(spans: &[(f32, f32)], lo: f32, hi: f32) -> bool {
-    spans.iter().any(|&(a, b)| a - TOLERANCE <= lo && hi <= b + TOLERANCE)
+    spans
+        .iter()
+        .any(|&(a, b)| a - TOLERANCE <= lo && hi <= b + TOLERANCE)
 }
 
 /// Find a span in a cross-ruling's spans that touches `coord` at one end,
@@ -344,11 +377,25 @@ fn ruling_end_at(spans: &[(f32, f32)], coord: f32, want_far_end_above: bool) -> 
 /// if it doesn't substantially overlap a box already found — later, looser
 /// detection tiers shouldn't duplicate an earlier, more precise one.
 #[allow(clippy::too_many_arguments)]
-fn push_if_new(boxes: &mut Vec<DetectedBox>, page: u16, x: f32, y: f32, width: f32, height: f32, max_area: f32) {
+fn push_if_new(
+    boxes: &mut Vec<DetectedBox>,
+    page: u16,
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+    max_area: f32,
+) {
     if width <= 0.0 || height <= 0.0 {
         return;
     }
-    let candidate = DetectedBox { page, x, y, width, height };
+    let candidate = DetectedBox {
+        page,
+        x,
+        y,
+        width,
+        height,
+    };
     if !(MIN_BOX_AREA..=max_area).contains(&candidate.area()) {
         return;
     }

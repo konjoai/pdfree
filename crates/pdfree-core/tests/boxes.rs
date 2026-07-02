@@ -33,7 +33,10 @@ fn pdf_with_rect(rect: PdfRect) -> Vec<u8> {
     let mut document = pdfium.create_new_pdf().expect("create pdf");
     let mut page = document
         .pages_mut()
-        .create_page_at_start(PdfPagePaperSize::Custom(PdfPoints::new(612.0), PdfPoints::new(792.0)))
+        .create_page_at_start(PdfPagePaperSize::Custom(
+            PdfPoints::new(612.0),
+            PdfPoints::new(792.0),
+        ))
         .expect("create page");
     page.objects_mut()
         .create_path_object_rect(rect, Some(PdfColor::BLACK), Some(PdfPoints::new(1.0)), None)
@@ -65,7 +68,11 @@ fn finds_a_single_drawn_rectangle_containing_the_point() {
     assert!((found.x - 100.0).abs() < 3.0, "x = {}", found.x);
     assert!((found.y - 200.0).abs() < 3.0, "y = {}", found.y);
     assert!((found.width - 160.0).abs() < 3.0, "width = {}", found.width);
-    assert!((found.height - 200.0).abs() < 3.0, "height = {}", found.height);
+    assert!(
+        (found.height - 200.0).abs() < 3.0,
+        "height = {}",
+        found.height
+    );
 }
 
 #[test]
@@ -96,7 +103,10 @@ fn pdf_with_ruled_grid() -> Vec<u8> {
     let mut document = pdfium.create_new_pdf().expect("create pdf");
     let mut page = document
         .pages_mut()
-        .create_page_at_start(PdfPagePaperSize::Custom(PdfPoints::new(612.0), PdfPoints::new(792.0)))
+        .create_page_at_start(PdfPagePaperSize::Custom(
+            PdfPoints::new(612.0),
+            PdfPoints::new(792.0),
+        ))
         .expect("create page");
 
     let color = PdfColor::BLACK;
@@ -143,8 +153,16 @@ fn snaps_to_exactly_one_cell_of_a_ruled_grid_without_overshooting() {
 
     assert!((found.x - 200.0).abs() < 2.0, "x = {}", found.x);
     assert!((found.y - 500.0).abs() < 2.0, "y = {}", found.y);
-    assert!((found.width - 100.0).abs() < 2.0, "width = {} (overshot into a neighboring cell?)", found.width);
-    assert!((found.height - 50.0).abs() < 2.0, "height = {} (overshot into a neighboring row?)", found.height);
+    assert!(
+        (found.width - 100.0).abs() < 2.0,
+        "width = {} (overshot into a neighboring cell?)",
+        found.width
+    );
+    assert!(
+        (found.height - 50.0).abs() < 2.0,
+        "height = {} (overshot into a neighboring row?)",
+        found.height
+    );
 }
 
 #[test]
@@ -157,8 +175,16 @@ fn boxes_on_page_finds_every_cell_of_a_ruled_grid() {
     // A 3-column x 2-row grid has 6 cells.
     assert_eq!(found.len(), 6, "found: {:?}", found);
     for cell in &found {
-        assert!((cell.width - 100.0).abs() < 2.0, "cell width = {}", cell.width);
-        assert!((cell.height - 50.0).abs() < 2.0, "cell height = {}", cell.height);
+        assert!(
+            (cell.width - 100.0).abs() < 2.0,
+            "cell width = {}",
+            cell.width
+        );
+        assert!(
+            (cell.height - 50.0).abs() < 2.0,
+            "cell height = {}",
+            cell.height
+        );
     }
 }
 
@@ -175,5 +201,8 @@ fn rejects_an_out_of_range_page() {
     let bytes = pdf_with_rect(rect);
 
     let err = box_at_point(&bytes, 5, 0.0, 0.0).unwrap_err();
-    assert!(matches!(err, PdfError::PageOutOfRange { index: 5, count: 1 }));
+    assert!(matches!(
+        err,
+        PdfError::PageOutOfRange { index: 5, count: 1 }
+    ));
 }

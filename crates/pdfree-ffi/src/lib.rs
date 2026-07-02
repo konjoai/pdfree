@@ -399,7 +399,10 @@ pub fn add_annotations(
 ) -> Result<Vec<u8>, PdfFreeError> {
     let annotations: Vec<pdfree_core::annotations::Annotation> =
         annotations.into_iter().map(Into::into).collect();
-    Ok(pdfree_core::annotations::annotate(&pdf_bytes, &annotations)?)
+    Ok(pdfree_core::annotations::annotate(
+        &pdf_bytes,
+        &annotations,
+    )?)
 }
 
 /// Enumerate the highlight/underline/strikeout/note annotations in a document.
