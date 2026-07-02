@@ -130,6 +130,69 @@ Phases 5–7 add `pdfree-ai`.
 
 ---
 
+## Core UX Principles (Wes, 2026-07-01)
+
+These come directly from years of frustration with existing "free" PDF tools.
+Treat them as hard requirements, not nice-to-haves:
+
+1. **Default view = whole page visible.** On document load, and on every
+   resize, default zoom must fit the entire page height+width in the viewport
+   — regardless of screen size or window size. Never open zoomed in. (Bug
+   found in current macOS app build — fix before anything else in Phase 4.)
+2. **Zero manual text-box placement for forms.** On document load, scan the
+   *entire* document for every fillable field (AcroForm fields **and**
+   vector-drawn boxes/cells via `boxes.rs`) and pre-render an input affordance
+   for all of them immediately. The user should never need to double-click to
+   manually place a box — that's a fallback only, not the primary flow. If a
+   field looks fillable to a human, the software must have already found it.
+3. **Signature/initials fields are special-cased.** Any detected field whose
+   label matches signature/initials patterns ("Signature", "Sign here",
+   "Initials", "Initial here", etc.) should not open as a text input — it
+   should trigger the sign flow directly (draw / type / upload image / reuse
+   a saved signature). This is a top-tier annoyance with paid competitors —
+   PDFree gives it away free, unlimited signatures, no per-document cap.
+4. **WYSIWYG text sizing, always.** Whatever font size renders on screen for
+   a filled/overlaid text field must be exactly what's in the exported PDF —
+   no silent shrink-on-export, no clipping. Decision: allow auto-shrink-to-fit
+   *at edit time* (rendered live as the user types), but the box must never
+   silently resize or clip text only at export — what you see while editing
+   is what you get in the file, full stop.
+5. **No File-menu-only actions for core operations.** Merge, split,
+   add/remove page, and import should be reachable via a persistent
+   in-canvas affordance (e.g., a "+" button) — not buried in a menu bar. The
+   user should never need an extra click/context-switch for something this
+   common.
+6. **Minimal toolbar.** Acrobat-style button sprawl is an anti-goal. Default
+   toolbar should cover the actual common path — open, fill, sign, add/remove
+   page, export — and nothing else competes for visual attention on first
+   load. Anything else (annotate styles, advanced page ops) can live one
+   level deep.
+7. **Reliability over polish.** UI can be rough around the edges; core
+   functionality (open, fill, sign, merge/split, export) must be rock solid —
+   every time, no exceptions. Requires real end-to-end tests: drag-and-drop
+   import, file-picker import, and the full fill→sign→export path, not just
+   unit tests on `pdfree-core`.
+8. **No paywalls on core features.** Signing (unlimited), filling, merge/
+   split, annotate, and export must always be free and fully functional. Any
+   future paid tier must be additive (see Potential Paid Features below), never
+   a cap on the core path.
+
+### Potential Paid Features (post-v1, not blocking core roadmap)
+
+Surfaced during this discussion — do not build until v1 core is solid:
+
+- **Legal-grade e-signature** (ESIGN/eIDAS certified audit trail, notarized
+  chain of custody) — v1 ships a *lightweight* local audit record only
+  (timestamp, signer name, device info where available, baked into
+  PDF metadata/incremental update); full certified audit trail is deferred,
+  tracked under the existing "Signature legal validity" open question below.
+- **Redact-and-overwrite existing field values** (e.g., white-out + replace
+  a filled field cleanly) — explicitly deferred, not needed for v1.
+- Possible general direction: AI features (Phase 5-7) as the one paid tier,
+  since those carry real per-call cost — see existing open question below.
+
+---
+
 ## AI / ML Integrations
 
 **Design principle: local-first, cloud-optional.** See `docs/ai-design.md` for the
@@ -162,7 +225,7 @@ protects against competitors wrapping it as a SaaS.
 - [x] Write unit/integration tests for open + render
 - [x] Confirm PDFium binary bundling strategy per platform (`docs/pdfium-bundling.md`)
 
-### Phase 1 — Core Read + Fill ✅ DONE (with one documented gap)
+### Phase 1 — Core Read + Fill ✅ DONE (documented gaps below)
 - [x] `document.rs`: open, save, metadata (open/save/metadata done in Phase 0)
 - [x] `renderer.rs`: render pages to images at arbitrary DPI ✅ (done in Phase 0)
 - [x] `forms.rs`: detect AcroForm fields (`forms::fields`), fill text/checkbox
@@ -176,6 +239,18 @@ protects against competitors wrapping it as a SaaS.
 - [x] `forms.rs`: overlay text boxes on non-interactive PDFs (`forms::overlay_text`)
 - [x] Tests: fill a real IRS Form 1040 PDF (`tests/fixtures/irs_f1040.pdf`,
       fetched from irs.gov), assert field values persist after save/reload
+- [ ] `forms.rs`: `FormField` needs `page: u16` and `rect: (f32, f32, f32, f32)`
+      added — currently only exposes `{name, kind, value}`, which is enough to
+      know a field exists but not where to draw it. **Blocks Phase 4**: no
+      shell can build the auto-detect-and-overlay-boxes UX (Core UX Principles,
+      above) without per-field page + bounding rect from the engine.
+- [ ] `forms.rs`: `fill()` needs deterministic font-size-fit-once logic —
+      currently there is zero font-size handling in `fill()` (no `/DA`
+      reading, no shrink logic); sizing is left entirely to PDFium's internal
+      form-render behavior, which is the likely source of the "text
+      resizes/gets cut off on export" problem. Needs to compute a size once
+      from the field rect + text at fill time and bake it in, so it never
+      changes between the fill view and the exported PDF.
 
 ### Phase 2 — Sign + Annotate ✅ CORE DONE (crypto signing deferred)
 - [x] `signatures.rs`: place signature image at coordinates (`place_signature`)
@@ -195,6 +270,16 @@ protects against competitors wrapping it as a SaaS.
       rendering doesn't synthesize one — so they won't show in `pdfree-core`'s
       own render preview yet. Sticky notes are unaffected (PDFium synthesizes
       their icon appearance natively; confirmed by rendering).
+- [ ] `signatures.rs`: basic audit metadata capture — `signer_name`,
+      `signer_email`, `ip_address`, `signed_at`. This is a new, separate,
+      **non-deferred** item: free-tier core, not blocked on the deferred
+      PKCS#12 crypto-signing work above. Embed as PDF metadata and/or an
+      appended signature-certificate page.
+- [ ] `forms.rs` / `signatures.rs`: "Initials" vs. "Signature" field
+      classification. PDF has no distinct Initials field type — PDFium only
+      gives us `FieldKind::Signature`. Needs a name-based heuristic (regex
+      over field name/tooltip) layered on top so the shell can route
+      "Initials" boxes to a lighter-weight signer UI than full signatures.
 - [ ] Web: `SignaturePad.tsx` using canvas → PNG → core
 
 ### Phase 3 — Edit + Merge/Split + Convert ✅ CORE DONE (DOCX deferred)
@@ -226,6 +311,10 @@ protects against competitors wrapping it as a SaaS.
       questions below rather than guessed at.
 
 ### Phase 4 — Platform Shells
+- [ ] `renderer.rs`: add a `fit_to_page()` helper (pure math: page size in
+      points + viewport size in pixels → `RenderOptions`/DPI) so every shell
+      computes the default fit-to-page zoom identically instead of each
+      platform back-computing it separately
 - [x] Wire UniFFI codegen for `pdfree-ffi` — migrated to proc-macro mode
       (`#[uniffi::export]` on `src/lib.rs` directly; the old hand-maintained
       `pdfree.udl` is deleted so the interface can't drift from the Rust code).
@@ -295,6 +384,31 @@ protects against competitors wrapping it as a SaaS.
       set up — bumped after Xcode 26's toolchain threw a `SwiftUICore`
       direct-linking error at 13.0 (a known class of Xcode/SDK version-skew
       issue, not a code problem).
+- [ ] **UX fixes from 2026-07-01 review** (see Core UX Principles above for
+      full rationale) — these should land before further platform-shell work:
+  - [ ] Fix default zoom to fit-whole-page on load and on resize (currently
+        opens zoomed in — confirmed bug against IRS 1040 test doc)
+  - [ ] Auto-run `boxes_on_page` + AcroForm field scan on load for *every*
+        page up front (already partially done — extend so no field is left
+        for manual double-click placement as the primary flow). Depends on
+        the Phase 1 `FormField.page`/`rect` gap below being closed first.
+  - [ ] Detect signature/initials fields by label pattern and route them to
+        the sign flow (draw/type/upload/reuse-saved) instead of a text field
+  - [ ] Confirm overlay/AcroForm text fill is shrink-to-fit at edit time with
+        no export-time re-sizing or clipping (audit `forms.rs::fill` /
+        `overlay_text` against this — currently unclear if export size can
+        drift from the live-edit render)
+  - [ ] Add persistent "+" quick-action (import/merge/split/add page) in the
+        main canvas UI, not just File menu
+  - [ ] Trim default toolbar to: open, fill, sign, add/remove page, export
+  - [ ] Add saved-signature reuse (store drawn/typed/uploaded signature,
+        insert on later documents without redrawing)
+  - [ ] Lightweight local audit metadata on sign (timestamp, signer name,
+        device info where available) — not the deferred certified/legal-grade
+        trail, see Potential Paid Features above
+  - [ ] End-to-end tests: drag-and-drop import, file-picker import, full
+        fill→sign→export path against real-world fixtures
+  - [ ] Page thumbnail sidebar (all shells)
 - [ ] Web app (React + WASM) with full toolbar
 - [ ] Tauri desktop app for Windows/Linux (reuse web UI)
 - [ ] iOS app (shared SwiftUI views from macOS)
@@ -338,6 +452,10 @@ When continuing from this document, Claude Code should:
 - [ ] **Local AI default model**: which quantized model ships as the on-device default? (Squish-served; pick per RAM budget)
 - [ ] **Cloud AI providers at launch**: Claude only, or Claude + GPT + Gemini via provider layer?
 - [ ] **Signature legal validity**: v1 = basic e-sign only, or pursue ESIGN/eIDAS from day one?
+      **Recommended default** (not yet confirmed by Wes): basic e-sign + free audit
+      metadata (signer name, timestamp, IP) ships in v1 as core; legal-grade
+      eIDAS/ESIGN certification becomes the later paid tier (see Potential Paid
+      Features above).
 - [ ] **iOS priority**: ship macOS + web first, then iOS in v1.1?
 - [ ] **Domain**: pdfree.app? pdfree.io? getpdfree.com? (check availability)
 - [ ] **AI as a paid tier?**: is cloud AI (real per-call cost) the one optional paid add-on?
