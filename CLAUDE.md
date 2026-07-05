@@ -101,8 +101,13 @@ graphics alone (closed cells, "open" cells with dividers but no top/bottom
 rule, and lone rectangles — see `docs/api.md` for the tier breakdown);
 `box_at_point` is a point-driven convenience wrapper over it. Powers the
 macOS app's scan-on-load box highlighting; not in the original phase plan,
-added alongside that UI work). Phase 4 is otherwise platform shells,
-Phases 5–7 add `pdfree-ai`.
+added alongside that UI work), `search.rs` + `bookmarks.rs` (Phase 4
+quick wins ✅ engine-side — `find_text` in-document search over
+`editor::text_runs`, `outline` wrapping `pdfium-render`'s already-bound
+bookmark tree; see Phase 4 below — neither is wired into a shell's UI yet).
+Phase 4 is otherwise platform shells, Phases 5–7 add `pdfree-ai` (except
+`confidence.rs`, a quick win pulled forward and already implemented — see
+`docs/ai-design.md`).
 
 ---
 
@@ -422,11 +427,36 @@ protects against competitors wrapping it as a SaaS.
   - [ ] End-to-end tests: drag-and-drop import, file-picker import, full
         fill→sign→export path against real-world fixtures
   - [ ] Page thumbnail sidebar (all shells)
+- [x] **Engine-side quick wins from the 2026-07-03 feature research pass**
+      (see the two linked feature-status/research artifacts) — the 4 of 9
+      identified "quick win" features buildable and testable without a
+      macOS/Xcode toolchain or network access to fetch model/OCR binaries:
+      `search::find_text` (in-document "⌘F", reuses `editor::text_runs`),
+      `bookmarks::outline` (document outline tree, wraps `pdfium-render`'s
+      bookmark API), `pages::bates_number` (sequential legal/discovery
+      stamping, reuses the `overlay_text` primitive), and
+      `pdfree_ai::confidence::ground_check` (grounding/hallucination check
+      for any future AI-produced value — no model call, no provider
+      needed). All four are pure `pdfree-core`/`pdfree-ai`, fully unit
+      tested (`tests/search.rs`, `tests/bookmarks.rs`, the `bates_*` tests
+      in `tests/pages.rs`, `confidence::tests` inline) — see `docs/api.md`
+      and `docs/ai-design.md`. **Not done in this pass**: shell wiring
+      (search UI, an outline sidebar, a Bates-numbering dialog) — that
+      needs a macOS/Xcode session to build and verify, which this session
+      didn't have. The other 5 quick wins from the research report (print,
+      undo/redo, grammar rewrite, multi-language OCR, watch-folder
+      automation) were deliberately deferred: print/OCR need platform
+      tooling (PDFKit, tesseract) unavailable here, undo/redo is mostly
+      Swift-side shell state, and grammar rewrite needs a live cloud
+      provider decision still open below.
 - [ ] Web app (React + WASM) with full toolbar
 - [ ] Tauri desktop app for Windows/Linux (reuse web UI)
 - [ ] iOS app (shared SwiftUI views from macOS)
 
 ### Phase 5 — AI Tier 1 (Core AI)
+- [x] `pdfree-ai/confidence.rs`: grounding/hallucination check (`ground_check`)
+      pulled forward from Phase 7 — needs no provider, so it shipped early;
+      see the Phase 4 quick-wins entry above and `docs/ai-design.md`
 - [ ] `pdfree-ai/provider.rs`: local + cloud provider abstraction (trait scaffolded)
 - [ ] `ocr.rs`: Tesseract + LLM cleanup; Apple Vision on macOS/iOS
 - [ ] `rag.rs`: chunk → embed → retrieve; wire Kyro/Kohaku/Vectro
@@ -440,7 +470,8 @@ protects against competitors wrapping it as a SaaS.
 ### Phase 7 — AI Tier 3 (v2+ expansion)
 - [ ] Layout-aware translation, editing; voice-to-fill; grammar/tone rewrite
 - [ ] Schema-driven extraction; document diff/redline
-- [ ] Agentic document workflows (lopi); confidence scoring + review routing
+- [ ] Agentic document workflows (lopi); review routing
+      (confidence scoring itself shipped early — see Phase 5 above)
 
 ---
 

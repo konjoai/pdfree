@@ -11,9 +11,13 @@
 //! The [`provider`] module defines a trait-based abstraction so any feature can
 //! run against a local or cloud backend interchangeably. Feature modules
 //! ([`rag`], [`ocr`], [`redact`], [`extract`], [`classify`]) are scaffolded for
-//! Phases 5–7 and currently return [`AiError::NotImplemented`].
+//! Phases 5–7 and currently return [`AiError::NotImplemented`]. [`confidence`]
+//! is the exception — a Phase 5 quick win that needs no provider at all, so
+//! it's already fully implemented: a plain grounding check any of the other
+//! modules can run on a value before showing it to the user.
 
 pub mod classify;
+pub mod confidence;
 pub mod extract;
 pub mod ocr;
 pub mod provider;

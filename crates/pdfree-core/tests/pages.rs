@@ -9,8 +9,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use pdfree_core::error::PdfError;
-use pdfree_core::pages::{self, Rotation};
-use pdfree_core::{Document, RenderOptions};
+use pdfree_core::pages::{self, BatesOptions, Rotation, StampCorner};
+use pdfree_core::{editor, renderer, Document, RenderOptions};
 
 /// 2-page fixture ("`PDFree` - page one" / "page two").
 const SAMPLE: &[u8] = include_bytes!("fixtures/sample.pdf");
@@ -205,4 +205,78 @@ fn reorder_rejects_an_out_of_range_index() {
 
     let err = pages::reorder(SAMPLE, &[0, 9]).expect_err("page 9 does not exist");
     assert!(matches!(err, PdfError::InvalidPageOrder(_)), "got {err:?}");
+}
+
+#[test]
+fn bates_numbers_every_page_sequentially_with_prefix_and_padding() {
+    skip_without_pdfium!();
+
+    let options = BatesOptions {
+        prefix: "ACME-".to_string(),
+        digits: 4,
+        ..BatesOptions::default()
+    };
+    let stamped = pages::bates_number(SAMPLE, &options).expect("bates_number");
+
+    let runs = editor::text_runs(&stamped).expect("text_runs");
+    assert!(
+        runs.iter().any(|r| r.page == 0 && r.text == "ACME-0001"),
+        "page 0 stamp missing; runs: {runs:?}"
+    );
+    assert!(
+        runs.iter().any(|r| r.page == 1 && r.text == "ACME-0002"),
+        "page 1 stamp missing; runs: {runs:?}"
+    );
+}
+
+#[test]
+fn bates_number_defaults_have_no_prefix_or_suffix_and_six_digit_padding() {
+    skip_without_pdfium!();
+
+    let stamped = pages::bates_number(SAMPLE, &BatesOptions::default()).expect("bates_number");
+
+    let runs = editor::text_runs(&stamped).expect("text_runs");
+    assert!(runs.iter().any(|r| r.page == 0 && r.text == "000001"));
+    assert!(runs.iter().any(|r| r.page == 1 && r.text == "000002"));
+}
+
+#[test]
+fn bates_number_rejects_a_non_positive_font_size() {
+    skip_without_pdfium!();
+
+    let options = BatesOptions {
+        font_size: 0.0,
+        ..BatesOptions::default()
+    };
+    let err = pages::bates_number(SAMPLE, &options).expect_err("font_size 0 is invalid");
+    assert!(matches!(err, PdfError::InvalidOverlay(_)), "got {err:?}");
+}
+
+#[test]
+fn bates_number_right_aligned_corner_lands_its_right_edge_at_the_margin() {
+    skip_without_pdfium!();
+
+    let options = BatesOptions {
+        corner: StampCorner::BottomRight,
+        margin: 20.0,
+        font_size: 12.0,
+        ..BatesOptions::default()
+    };
+    let stamped = pages::bates_number(SAMPLE, &options).expect("bates_number");
+
+    let runs = editor::text_runs(&stamped).expect("text_runs");
+    let stamp = runs
+        .iter()
+        .find(|r| r.page == 0 && r.text == "000001")
+        .expect("stamp on page 0");
+
+    let (page_width, _) = renderer::page_size_points(SAMPLE, 0).expect("page_size_points");
+    let expected_right_edge = page_width - options.margin;
+    assert!(
+        (stamp.x + stamp.width - expected_right_edge).abs() < 2.0,
+        "right edge should sit at the margin: x={} width={} page_width={}",
+        stamp.x,
+        stamp.width,
+        page_width
+    );
 }

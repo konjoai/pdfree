@@ -45,7 +45,22 @@ pub trait Provider {
 ### Tier 3 — Expansion (v2+)
 Layout-aware translation; layout-aware editing; voice-to-fill; grammar/tone
 rewrite; schema-driven extraction; document diff/redline; agentic document
-workflows (lopi); confidence scoring + review routing.
+workflows (lopi); review routing.
+
+### Confidence scoring (`confidence.rs`) — already implemented
+
+Pulled forward from Tier 3 by the 2026-07-03 feature research pass: unlike
+every other module above, grounding a value against the source document's
+own text is a plain string search, not a model call, so it needs no
+provider and no open decision to ship. `confidence::ground_check(document_text,
+value)` reports `Grounding::Exact` / `Partial` / `Ungrounded` (plus a
+matching `0.0..=1.0` confidence and, for an exact match, a short context
+excerpt) — case-insensitive and whitespace-normalized so PDF text
+extraction's line wrapping doesn't cause false negatives. Every Tier 1/2
+feature above should run its output through this before showing it to the
+user, the same way `rag::answer`, `extract::extract_tables`, and smart form
+fill all eventually will — it's the free trust check that catches
+hallucination before a value ever reaches a person.
 
 ## Architecture notes
 
@@ -68,4 +83,6 @@ workflows (lopi); confidence scoring + review routing.
 
 `pdfree-ai` is scaffolded: `provider.rs` defines the trait; `rag`, `ocr`,
 `redact`, `extract`, `classify` expose intended signatures returning
-`AiError::NotImplemented`. Bodies land in Phases 5–7.
+`AiError::NotImplemented`. Bodies land in Phases 5–7. `confidence.rs` is the
+one exception — fully implemented now (see above), since it needs no
+provider at all.
