@@ -165,7 +165,7 @@ one instance" within a run yet. `replace_text` errors
 (`PdfError::TextNotFound`) rather than silently no-opping if nothing on the
 page matches.
 
-## Pages: merge, split, rotate, extract, reorder
+## Pages: merge, split, rotate, extract, reorder, Bates numbering
 
 ```rust
 use pdfree_core::pages::{self, Rotation};
@@ -180,6 +180,30 @@ let rotated: Vec<u8> = pages::rotate(&pdf_bytes, 0, Rotation::Clockwise90)?;
 let extracted: Vec<u8> = pages::extract(&pdf_bytes, &[2, 0, 1])?;
 let reordered: Vec<u8> = pages::reorder(&pdf_bytes, &[1, 0])?; // swap a 2-page doc
 ```
+
+`pages::bates_number` (Phase 4 quick win) stamps a sequential
+`<prefix><zero-padded number><suffix>` onto every page — the legal/discovery
+convention — reusing the same stamped-text-object primitive as
+`forms::overlay_text`, just looped per page with a computed string:
+
+```rust
+use pdfree_core::pages::{self, BatesOptions, StampCorner};
+
+let stamped: Vec<u8> = pages::bates_number(&pdf_bytes, &BatesOptions {
+    prefix: "ACME-".to_string(),
+    suffix: String::new(),
+    start: 1,
+    digits: 6,                       // "ACME-000001", "ACME-000002", ...
+    corner: StampCorner::BottomRight,
+    margin: 24.0,                    // PDF points from the page edge
+    font_size: 9.0,
+})?;
+```
+
+A right-aligned corner (`TopRight`/`BottomRight`) measures each page's
+stamped label after placing it (via the text object's own rendered bounds)
+and shifts it left by that exact width, rather than estimating text width —
+so the stamp's right edge always lands precisely at `margin`.
 
 ## Converting: text extraction and image → PDF
 
@@ -250,6 +274,50 @@ Two implementation details worth knowing if this ever needs revisiting:
 Returns `None` if neither strategy finds an enclosing box — the caller
 decides the fallback (a fixed-size overlay, typically).
 
+## Search: in-document text search (Phase 4 quick win — "⌘F")
+
+```rust
+use pdfree_core::search;
+
+// Every text run containing "invoice", across the whole document.
+let hits = search::find_text(&pdf_bytes, "invoice", false)?; // false = case-insensitive
+for hit in &hits {
+    // hit.x/y/width/height are the containing run's bounding box, in PDF
+    // points — enough to draw a highlight rect and jump to hit.page.
+    println!("page {}: {:?} ({}x)", hit.page, hit.text, hit.occurrences);
+}
+```
+
+Reuses `editor::text_runs` rather than a second text-walking pass. **Known
+scope boundary**: a match's bounds are the whole containing run's bounding
+box, not a tight box around just the matched substring — same
+character-offset-precision boundary `editor::replace_text` already
+documents. `SearchMatch::occurrences` reports how many times the query
+appears within that run, so a shell can show a count instead of pretending
+there was only one hit. An empty query returns an empty list rather than
+every run.
+
+## Bookmarks: document outline (Phase 4 quick win)
+
+```rust
+use pdfree_core::bookmarks;
+
+// A tree, not a flat list — walk `children` to render a nested outline panel.
+let outline = bookmarks::outline(&pdf_bytes)?;
+for top_level in &outline {
+    println!("{} -> page {:?}", top_level.title, top_level.page);
+}
+```
+
+Wraps `pdfium-render`'s already-bound `PdfBookmarks`/`PdfBookmark` read API;
+`pdfree-core` doesn't add any new `PDFium` capability here, just a plain,
+`Send`-able tree a shell can render without touching `PDFium` types. Most
+PDFs have no outline at all — that's `Ok(vec![])`, not an error. A bookmark
+whose destination `PDFium` can't resolve to a page reports `page: None`
+rather than being dropped, so the shell can still show its title. Depth and
+total-node traversal are capped (mirroring the `MAX_EDGE_PIXELS` guard in
+`renderer.rs`) against a pathological or cyclic bookmark tree.
+
 ## Errors
 
 All fallible calls return `pdfree_core::Result<T>` (`Err` is `PdfError`):
@@ -262,7 +330,7 @@ All fallible calls return `pdfree_core::Result<T>` (`Err` is `PdfError`):
 | `InvalidRenderTarget(..)` | Non-positive DPI, or a render that would exceed the pixel-size guard |
 | `UnknownFormField(name)` | `forms::fill` was asked to fill a name not present in the document |
 | `UnsupportedFieldFill { name, kind }` | `forms::fill` was asked to fill a field with a value kind it can't accept (wrong value type, or a dropdown/list-box/radio/signature field) |
-| `InvalidOverlay(..)` | `forms::overlay_text` given a non-positive/non-finite `font_size` |
+| `InvalidOverlay(..)` | `forms::overlay_text` or `pages::bates_number` given a non-positive/non-finite `font_size` |
 | `InvalidAnnotation(..)` | `annotations::annotate` given a non-positive/non-finite width/height |
 | `InvalidSignaturePlacement(..)` | `signatures::place_signature` given a non-positive/non-finite width/height |
 | `InvalidPageRange(..)` | `pages::merge`/`split`/`extract` given an empty or inverted range/list |
@@ -285,9 +353,14 @@ public entry point.
 
 ## Status
 
-Phases 0–3 are complete, plus a Phase 4 add-on (`boxes::box_at_point`) driven
-by the macOS app's double-click-to-fill-a-box feature. `pdfree-core`'s only
-remaining deliberate gaps are `signatures::sign_with_certificate` (PKCS#12)
-and `convert::to_docx`/`from_docx` — both `PdfError::NotImplemented` pending
+Phases 0–3 are complete, plus two Phase 4 add-ons: `boxes::box_at_point`
+(driven by the macOS app's double-click-to-fill-a-box feature) and four
+viewer/pages quick wins from the 2026-07-03 feature research pass —
+`search::find_text`, `bookmarks::outline`, and `pages::bates_number` here,
+plus `pdfree_ai::confidence::ground_check` (see `docs/ai-design.md`).
+`pdfree-core`'s only remaining deliberate gaps are
+`signatures::sign_with_certificate` (PKCS#12) and
+`convert::to_docx`/`from_docx` — both `PdfError::NotImplemented` pending
 open decisions in `CLAUDE.md`, not missing engineering. The rest of Phase 4
-(platform shells) and Phases 5–7 (`pdfree-ai`) are next.
+(platform shells — these four quick wins aren't wired into any shell's UI
+yet) and Phases 5–7 (`pdfree-ai`) are next.

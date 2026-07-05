@@ -1,10 +1,11 @@
-//! Page operations: merge, split, rotate, extract, reorder (Phase 3).
+//! Page operations: merge, split, rotate, extract, reorder (Phase 3), plus
+//! Bates-style sequential stamping (Phase 4 quick win).
 //!
-//! Every operation here builds a fresh in-memory `PDFium` document and copies
-//! pages into it via `PDFium`'s own page-import machinery (`FPDF_ImportPages`),
-//! rather than manipulating page trees directly — the same mechanism a tool
-//! like `pdftk` relies on, so page resources (fonts, images) come along
-//! correctly instead of dangling.
+//! Every merge/split/extract operation here builds a fresh in-memory
+//! `PDFium` document and copies pages into it via `PDFium`'s own page-import
+//! machinery (`FPDF_ImportPages`), rather than manipulating page trees
+//! directly — the same mechanism a tool like `pdftk` relies on, so page
+//! resources (fonts, images) come along correctly instead of dangling.
 
 use pdfium_render::prelude::*;
 
@@ -213,4 +214,123 @@ pub fn reorder(pdf_bytes: &[u8], new_order: &[u16]) -> Result<Vec<u8>> {
     }
 
     extract_with(&pdfium, pdf_bytes, new_order)
+}
+
+/// Which corner of the page a [`bates_number`] stamp is anchored to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StampCorner {
+    /// Top-left corner.
+    TopLeft,
+    /// Top-right corner.
+    TopRight,
+    /// Bottom-left corner.
+    BottomLeft,
+    /// Bottom-right corner.
+    BottomRight,
+}
+
+/// Options controlling [`bates_number`].
+#[derive(Debug, Clone)]
+pub struct BatesOptions {
+    /// Text stamped before the sequence number, e.g. `"ACME-"`.
+    pub prefix: String,
+    /// Text stamped after the sequence number, e.g. `"-CONFIDENTIAL"`.
+    pub suffix: String,
+    /// The number stamped on page 0; each following page increments by one.
+    pub start: u32,
+    /// Zero-pad the number to at least this many digits (e.g. `6` ->
+    /// `"000001"`). `0` means no padding.
+    pub digits: u8,
+    /// Which corner of the page to stamp.
+    pub corner: StampCorner,
+    /// Margin from the page edge, in PDF points.
+    pub margin: f32,
+    /// Font size, in PDF points. Must be a positive, finite number.
+    pub font_size: f32,
+}
+
+impl Default for BatesOptions {
+    fn default() -> Self {
+        Self {
+            prefix: String::new(),
+            suffix: String::new(),
+            start: 1,
+            digits: 6,
+            corner: StampCorner::BottomRight,
+            margin: 24.0,
+            font_size: 9.0,
+        }
+    }
+}
+
+/// Stamp a sequential Bates-style number onto every page of a document —
+/// `<prefix><zero-padded number><suffix>`, starting at `options.start` on
+/// page 0 and incrementing by one per page — returning the updated PDF as
+/// new bytes.
+///
+/// This is the legal/discovery "Bates numbering" convention, implemented as
+/// a loop of stamped text objects (the same primitive
+/// [`crate::forms::overlay_text`] uses) rather than a new module: each
+/// page's label is measured after being placed at the left margin, so a
+/// right-aligned corner shifts it left by its actual rendered width instead
+/// of guessing at one.
+///
+/// # Errors
+///
+/// Returns [`PdfError::InvalidOverlay`] if `font_size` is not a positive,
+/// finite number, and propagates `PDFium` / load errors otherwise.
+pub fn bates_number(pdf_bytes: &[u8], options: &BatesOptions) -> Result<Vec<u8>> {
+    if !(options.font_size.is_finite() && options.font_size > 0.0) {
+        return Err(PdfError::InvalidOverlay(format!(
+            "font_size must be a positive, finite number (got {})",
+            options.font_size
+        )));
+    }
+
+    let pdfium = crate::pdfium::bind()?;
+    let mut document = pdfium.load_pdf_from_byte_slice(pdf_bytes, None)?;
+    let font = document.fonts_mut().helvetica();
+    let count = document.pages().len();
+    let digits_width = usize::from(options.digits);
+
+    for page_index in 0..count {
+        let number = options.start.saturating_add(u32::from(page_index));
+        let label = format!(
+            "{}{number:0digits_width$}{}",
+            options.prefix, options.suffix
+        );
+
+        let mut page = document.pages().get(page_index)?;
+        let page_width = page.width().value;
+        let page_height = page.height().value;
+
+        let y = match options.corner {
+            StampCorner::TopLeft | StampCorner::TopRight => {
+                page_height - options.margin - options.font_size
+            }
+            StampCorner::BottomLeft | StampCorner::BottomRight => options.margin,
+        };
+
+        let mut stamp = page.objects_mut().create_text_object(
+            PdfPoints::new(options.margin),
+            PdfPoints::new(y),
+            label.as_str(),
+            font,
+            PdfPoints::new(options.font_size),
+        )?;
+
+        if matches!(
+            options.corner,
+            StampCorner::TopRight | StampCorner::BottomRight
+        ) {
+            let label_width = stamp
+                .as_text_object()
+                .and_then(|text| text.bounds().ok())
+                .map_or(0.0, |bounds| bounds.to_rect().width().value);
+            let dx = (page_width - options.margin) - (options.margin + label_width);
+            stamp.translate(PdfPoints::new(dx), PdfPoints::new(0.0))?;
+        }
+    }
+
+    Ok(document.save_to_bytes()?)
 }

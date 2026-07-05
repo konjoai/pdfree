@@ -24,10 +24,12 @@
 //! ```
 //!
 //! Later phases fill in [`forms`], [`signatures`], [`annotations`],
-//! [`editor`], [`pages`], and [`convert`], which currently return
-//! [`PdfError::NotImplemented`].
+//! [`editor`], [`pages`], and [`convert`]. Phase 4 adds viewer/navigation
+//! quick wins on top: [`search`] (in-document text search) and [`bookmarks`]
+//! (the document outline tree).
 
 pub mod annotations;
+pub mod bookmarks;
 pub mod boxes;
 pub mod convert;
 pub mod document;
@@ -37,6 +39,7 @@ pub mod forms;
 pub mod pages;
 pub mod pdfium;
 pub mod renderer;
+pub mod search;
 pub mod signatures;
 
 pub use document::{Document, Metadata};
