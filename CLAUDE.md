@@ -244,18 +244,31 @@ protects against competitors wrapping it as a SaaS.
 - [x] `forms.rs`: overlay text boxes on non-interactive PDFs (`forms::overlay_text`)
 - [x] Tests: fill a real IRS Form 1040 PDF (`tests/fixtures/irs_f1040.pdf`,
       fetched from irs.gov), assert field values persist after save/reload
-- [ ] `forms.rs`: `FormField` needs `page: u16` and `rect: (f32, f32, f32, f32)`
-      added — currently only exposes `{name, kind, value}`, which is enough to
-      know a field exists but not where to draw it. **Blocks Phase 4**: no
-      shell can build the auto-detect-and-overlay-boxes UX (Core UX Principles,
-      above) without per-field page + bounding rect from the engine.
-- [ ] `forms.rs`: `fill()` needs deterministic font-size-fit-once logic —
-      currently there is zero font-size handling in `fill()` (no `/DA`
-      reading, no shrink logic); sizing is left entirely to PDFium's internal
-      form-render behavior, which is the likely source of the "text
-      resizes/gets cut off on export" problem. Needs to compute a size once
-      from the field rect + text at fill time and bake it in, so it never
-      changes between the fill view and the exported PDF.
+- [x] `forms.rs`: `FormField` now carries `page: u16` plus flat `x`/`y`/
+      `width`/`height: f32` fields (matching the `TextRun`/`AnnotationInfo`
+      convention already used elsewhere in the crate, not a `rect` tuple),
+      populated from each widget annotation's own bounds. **Unblocks Phase 4**:
+      a shell can now scan the whole document once and get page + bounding
+      rect for every field to pre-render an input affordance, no manual
+      double-click placement needed. Mirrored into `pdfree-ffi`'s `FormField`
+      record so the FFI surface doesn't drift behind core. Verified against
+      the real, multi-page IRS 1040 fixture (`tests/forms.rs`) — every
+      discovered field reports a plausible page index and non-empty rect.
+- [x] `forms.rs`: `fill()`'s deterministic font-size-fit-once logic was
+      **investigated and confirmed not achievable** with the current binding,
+      rather than left as an open TODO. Read `pdfium-render` 0.8.37's own
+      source: setting a text field's rendered font size means writing its
+      widget's `/DA` string, and the only calls that can touch an annotation's
+      dictionary keys (`FPDFAnnot_SetStringValue_str` and friends) live behind
+      a `pub(crate)`-only trait the crate deliberately keeps unexposed — there
+      is no annotation handle or dictionary-key setter reachable from outside
+      `pdfium-render` for a `PdfFormField`. So sizing stays entirely
+      `PDFium`'s own form-render behavior at export time (the likely source of
+      the "text resizes/gets cut off on export" symptom), and this is
+      documented as a real gap in `forms.rs`'s module doc and `docs/api.md`
+      rather than silently left unaddressed. Revisit only if a future
+      `pdfium-render` release exposes a public setter, or forking/vendoring
+      the binding is ever worth the maintenance cost.
 
 ### Phase 2 — Sign + Annotate ✅ CORE DONE (crypto signing deferred)
 - [x] `signatures.rs`: place signature image at coordinates (`place_signature`)
@@ -408,8 +421,10 @@ protects against competitors wrapping it as a SaaS.
         pixel size (`pagePointSize`).
   - [ ] Auto-run `boxes_on_page` + AcroForm field scan on load for *every*
         page up front (already partially done — extend so no field is left
-        for manual double-click placement as the primary flow). Depends on
-        the Phase 1 `FormField.page`/`rect` gap below being closed first.
+        for manual double-click placement as the primary flow). The Phase 1
+        `FormField.page`/rect gap this depended on is now closed (see Phase 1
+        above); this item is now unblocked but still needs the actual macOS
+        shell wiring, which needs an Xcode session to build and verify.
   - [ ] Detect signature/initials fields by label pattern and route them to
         the sign flow (draw/type/upload/reuse-saved) instead of a text field
   - [ ] Confirm overlay/AcroForm text fill is shrink-to-fit at edit time with

@@ -44,10 +44,15 @@ let png = pdfree_core::render_page(&doc, 0, &RenderOptions::default())?; // defa
 ```rust
 use pdfree_core::forms::{self, FieldKind, FillValue};
 
-// Enumerate every interactive field with its kind and current value.
+// Enumerate every interactive field with its kind, current value, and the
+// page + widget rect a shell needs to pre-render an input affordance for it
+// without any manual box placement.
 let fields = forms::fields(&pdf_bytes)?;
 for f in &fields {
-    println!("{:?} {} = {:?}", f.kind, f.name, f.value);
+    println!(
+        "{:?} {} = {:?} (page {}, {}x{} at {},{})",
+        f.kind, f.name, f.value, f.page, f.width, f.height, f.x, f.y
+    );
 }
 
 // Fill by field name. Every name must exist and must pair with a FillValue
@@ -67,6 +72,14 @@ groups, and signature fields are readable via `forms::fields` (their
 `FieldKind` and current value come back fine) but not writable through
 `forms::fill` — that call returns `PdfError::UnsupportedFieldFill { name, kind }`
 rather than silently no-opping. See `CLAUDE.md`'s Phase 1 entry for why.
+
+**Known gap**: `fill()` has no way to bake in a deterministic "fit once" font
+size for a text field — confirmed against `pdfium-render` 0.8.37's source
+that setting a widget's `/DA` (default appearance) string is only reachable
+through a `pub(crate)`-only trait the crate deliberately doesn't expose, so
+there is no annotation handle or dictionary-key setter available from outside
+the binding. Filled text is sized entirely by `PDFium`'s own form-render
+behavior at export time. See `CLAUDE.md`'s Phase 1 entry for why.
 
 ## Overlaying text on a non-interactive PDF
 

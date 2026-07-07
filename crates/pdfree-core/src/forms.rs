@@ -7,6 +7,21 @@
 //! underlying binding actually supports: `PDFium` exposes setters for text
 //! fields and checkboxes, but not for selecting an option in a dropdown or
 //! list box — see [`FillValue`] and [`fill`] for the exact contract.
+//!
+//! **Known gap: no font-size control on text field fill.** `fill()` cannot
+//! bake in a deterministic "fit once" font size for a text field, and this is
+//! a confirmed limitation of `pdfium-render` 0.8.37, not an oversight to fix
+//! later with more code: setting a field's rendered font size means writing
+//! its widget's `/DA` (default appearance) string, and the only bindings that
+//! can touch an annotation's dictionary keys (`FPDFAnnot_SetStringValue_str`
+//! and friends, via `PdfFormFieldPrivate`) live in a `pub(crate)` module the
+//! crate deliberately does not expose — there is no annotation handle or
+//! dictionary-key setter reachable from outside `pdfium-render` for a
+//! [`PdfFormField`]. Filled text is therefore sized entirely by `PDFium`'s own
+//! form-render behavior at export time, which is the likely source of the
+//! "text resizes/gets cut off on export" symptom. Revisit if a future
+//! `pdfium-render` release exposes a public setter; there is no lower-risk
+//! workaround available today short of vendoring/forking the binding.
 
 use std::collections::HashMap;
 
@@ -25,6 +40,16 @@ pub struct FormField {
     /// for checkboxes; the raw text for text fields; `None` for unset or
     /// unreadable fields.
     pub value: Option<String>,
+    /// 0-based page index this field's widget is on.
+    pub page: u16,
+    /// Horizontal position of the field's widget, from the page's left edge.
+    pub x: f32,
+    /// Vertical position of the field's widget, from the page's bottom edge.
+    pub y: f32,
+    /// Width of the field's widget.
+    pub width: f32,
+    /// Height of the field's widget.
+    pub height: f32,
 }
 
 /// The kind of an `AcroForm` field.
@@ -89,13 +114,22 @@ pub fn fields(pdf_bytes: &[u8]) -> Result<Vec<FormField>> {
     let document = pdfium.load_pdf_from_byte_slice(pdf_bytes, None)?;
 
     let mut out = Vec::new();
-    for page in document.pages().iter() {
+    for (page_index, page) in document.pages().iter().enumerate() {
         for annotation in page.annotations().iter() {
+            let bounds = annotation.bounds().unwrap_or(PdfRect::ZERO);
             if let Some(field) = annotation.as_form_field() {
                 out.push(FormField {
                     name: field.name().unwrap_or_default(),
                     kind: FieldKind::from_pdfium(field.field_type()),
                     value: field_value(field),
+                    // Page counts are u16 throughout this crate; page_index is
+                    // bounded by document.pages().len(), so this never truncates.
+                    #[allow(clippy::cast_possible_truncation)]
+                    page: page_index as u16,
+                    x: bounds.left().value,
+                    y: bounds.bottom().value,
+                    width: bounds.width().value,
+                    height: bounds.height().value,
                 });
             }
         }

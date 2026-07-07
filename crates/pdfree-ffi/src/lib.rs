@@ -179,6 +179,11 @@ pub struct FormField {
     pub name: String,
     pub kind: FieldKind,
     pub value: Option<String>,
+    pub page: u16,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
 }
 
 impl From<forms::FormField> for FormField {
@@ -187,6 +192,11 @@ impl From<forms::FormField> for FormField {
             name: f.name,
             kind: f.kind.into(),
             value: f.value,
+            page: f.page,
+            x: f.x,
+            y: f.y,
+            width: f.width,
+            height: f.height,
         }
     }
 }
