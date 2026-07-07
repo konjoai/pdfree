@@ -228,7 +228,12 @@ fn fills_a_real_irs_form_1040_and_field_values_persist() {
         "every field must have a plausible page + non-empty rect"
     );
     assert!(
-        found.iter().map(|f| f.page).collect::<std::collections::HashSet<_>>().len() > 1,
+        found
+            .iter()
+            .map(|f| f.page)
+            .collect::<std::collections::HashSet<_>>()
+            .len()
+            > 1,
         "the 1040 spans multiple pages; expected fields on more than one"
     );
 
