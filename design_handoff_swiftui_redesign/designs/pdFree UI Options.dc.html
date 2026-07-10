@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<style>
+  html,body{margin:0}
+  body{background:#0d0c0b;font-family:system-ui,-apple-system,"SF Pro Text",sans-serif;-webkit-font-smoothing:antialiased}
+  *{box-sizing:border-box}
+</style>
+</helmet>
+
+<!-- ================= t8 — LOGO: F-ward bars ================= -->
+<section style="padding:46px 52px 40px;border-bottom:1px solid rgba(255,255,255,.07)" id="t8">
+  <div style="display:flex;align-items:baseline;gap:11px;margin-bottom:6px">
+    <a href="#t8" style="font:600 10px ui-monospace,Menlo,monospace;padding:3px 8px;background:#37c07a;color:#08130c;border-radius:5px;text-decoration:none">8</a>
+    <span style="font:600 15px/1.2 system-ui,sans-serif;color:#f3efe8">Logo — bars reading as an "F", with a fourth bar</span>
+  </div>
+  <p style="font:400 12.5px/1.5 system-ui,sans-serif;color:#8f887d;margin:0 0 26px;max-width:660px">On the <a href="#7b" style="color:#5fd699">7b</a> page-as-icon base. A left stem turns the bars into an F while keeping the "page of content" read; the added fourth bar sits at the bottom. Three ways to balance it.</p>
+
+  <div style="display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start">
+
+    <!-- 8a stem + 3 stepped arms -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="8a">
+      <div style="display:flex;align-items:baseline;gap:9px"><a href="#8a" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">8a</a><span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Stem + 3 bars</b> · F meets lines of text</span></div>
+      <div style="width:300px;background:#141312;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:26px;display:flex;flex-direction:column;align-items:center;gap:22px">
+        <div style="width:96px;height:96px;display:flex;align-items:center;justify-content:center">
+          <div style="width:66px;height:82px;background:#fff;border-radius:11px;clip-path:polygon(0 0,70% 0,100% 22%,100% 100%,0 100%);box-shadow:0 12px 30px -8px rgba(0,0,0,.6);position:relative;display:flex;gap:6px;padding:24px 14px 16px;box-sizing:border-box">
+            <div style="position:absolute;top:0;right:0;width:21px;height:19px;background:#e4efe9;clip-path:polygon(0 0,100% 100%,0 100%)"></div>
+            <div style="width:8px;background:#37c07a;border-radius:4px"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:7px;padding-top:1px">
+              <div style="height:8px;border-radius:4px;background:#37c07a"></div>
+              <div style="height:8px;border-radius:4px;background:#37c07a;width:66%"></div>
+              <div style="height:8px;border-radius:4px;background:#b5e3ca;width:42%"></div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:2px"><span style="font:800 27px/1 system-ui;letter-spacing:-1px;color:#f3efe8">pd</span><span style="font:700 20px/1 system-ui;color:#08130c;background:#37c07a;padding:4px 11px;border-radius:999px;letter-spacing:-.5px">free</span></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center"><div style="width:24px;height:30px;background:#fff;border-radius:4px;clip-path:polygon(0 0,68% 0,100% 24%,100% 100%,0 100%);display:flex;gap:2.5px;padding:8px 5px 6px;box-sizing:border-box"><div style="width:3px;background:#37c07a;border-radius:2px"></div><div style="flex:1;display:flex;flex-direction:column;gap:2.5px"><div style="height:3px;border-radius:2px;background:#37c07a"></div><div style="height:3px;border-radius:2px;background:#37c07a;width:64%"></div><div style="height:3px;border-radius:2px;background:#b5e3ca;width:42%"></div></div></div></div>
+          <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center"><div style="width:15px;height:19px;background:#fff;border-radius:3px;clip-path:polygon(0 0,66% 0,100% 26%,100% 100%,0 100%);display:flex;gap:1.5px;padding:5px 3px 4px;box-sizing:border-box"><div style="width:2px;background:#37c07a;border-radius:1px"></div><div style="flex:1;display:flex;flex-direction:column;gap:1.5px"><div style="height:2px;border-radius:1px;background:#37c07a"></div><div style="height:2px;border-radius:1px;background:#37c07a;width:64%"></div></div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8b no stem, 4 stepped bars -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="8b">
+      <div style="display:flex;align-items:baseline;gap:9px"><a href="#8b" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">8b</a><span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Four bars</b> · no stem, just a denser page</span></div>
+      <div style="width:300px;background:#141312;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:26px;display:flex;flex-direction:column;align-items:center;gap:22px">
+        <div style="width:96px;height:96px;display:flex;align-items:center;justify-content:center">
+          <div style="width:66px;height:82px;background:#fff;border-radius:11px;clip-path:polygon(0 0,70% 0,100% 22%,100% 100%,0 100%);box-shadow:0 12px 30px -8px rgba(0,0,0,.6);position:relative;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:20px 15px 0">
+            <div style="position:absolute;top:0;right:0;width:21px;height:19px;background:#e4efe9;clip-path:polygon(0 0,100% 100%,0 100%)"></div>
+            <div style="height:7px;border-radius:3.5px;background:#37c07a"></div>
+            <div style="height:7px;border-radius:3.5px;background:#37c07a;width:76%"></div>
+            <div style="height:7px;border-radius:3.5px;background:#37c07a;width:56%"></div>
+            <div style="height:7px;border-radius:3.5px;background:#b5e3ca;width:38%"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:2px"><span style="font:800 27px/1 system-ui;letter-spacing:-1px;color:#f3efe8">pd</span><span style="font:700 20px/1 system-ui;color:#08130c;background:#37c07a;padding:4px 11px;border-radius:999px;letter-spacing:-.5px">free</span></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center"><div style="width:24px;height:30px;background:#fff;border-radius:4px;clip-path:polygon(0 0,68% 0,100% 24%,100% 100%,0 100%);display:flex;flex-direction:column;justify-content:center;gap:2.5px;padding:7px 5px 0"><div style="height:2.6px;border-radius:2px;background:#37c07a"></div><div style="height:2.6px;border-radius:2px;background:#37c07a;width:76%"></div><div style="height:2.6px;border-radius:2px;background:#37c07a;width:56%"></div><div style="height:2.6px;border-radius:2px;background:#b5e3ca;width:38%"></div></div></div>
+          <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center"><div style="width:15px;height:19px;background:#fff;border-radius:3px;clip-path:polygon(0 0,66% 0,100% 26%,100% 100%,0 100%);display:flex;flex-direction:column;justify-content:center;gap:1.6px;padding:5px 3px 0"><div style="height:1.8px;border-radius:1px;background:#37c07a"></div><div style="height:1.8px;border-radius:1px;background:#37c07a;width:74%"></div><div style="height:1.8px;border-radius:1px;background:#37c07a;width:54%"></div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8c bold F + baseline bar -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="8c">
+      <div style="display:flex;align-items:baseline;gap:9px"><a href="#8c" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">8c</a><span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Bold F + baseline</b> · clear F, 4th bar spans the foot</span></div>
+      <div style="width:300px;background:#141312;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:26px;display:flex;flex-direction:column;align-items:center;gap:22px">
+        <div style="width:96px;height:96px;display:flex;align-items:center;justify-content:center">
+          <div style="width:66px;height:82px;background:#fff;border-radius:11px;clip-path:polygon(0 0,70% 0,100% 22%,100% 100%,0 100%);box-shadow:0 12px 30px -8px rgba(0,0,0,.6);position:relative;display:flex;flex-direction:column;gap:8px;padding:24px 14px 16px;box-sizing:border-box">
+            <div style="position:absolute;top:0;right:0;width:21px;height:19px;background:#e4efe9;clip-path:polygon(0 0,100% 100%,0 100%)"></div>
+            <div style="flex:1;display:flex;gap:6px">
+              <div style="width:9px;background:#37c07a;border-radius:4px"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:8px;padding-top:1px">
+                <div style="height:9px;border-radius:4px;background:#37c07a"></div>
+                <div style="height:9px;border-radius:4px;background:#37c07a;width:62%"></div>
+              </div>
+            </div>
+            <div style="height:7px;border-radius:3.5px;background:#b5e3ca"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:2px"><span style="font:800 27px/1 system-ui;letter-spacing:-1px;color:#f3efe8">pd</span><span style="font:700 20px/1 system-ui;color:#08130c;background:#37c07a;padding:4px 11px;border-radius:999px;letter-spacing:-.5px">free</span></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center"><div style="width:24px;height:30px;background:#fff;border-radius:4px;clip-path:polygon(0 0,68% 0,100% 24%,100% 100%,0 100%);display:flex;flex-direction:column;gap:3px;padding:8px 5px 6px;box-sizing:border-box"><div style="flex:1;display:flex;gap:2.5px"><div style="width:3.4px;background:#37c07a;border-radius:2px"></div><div style="flex:1;display:flex;flex-direction:column;gap:3px"><div style="height:3.4px;border-radius:2px;background:#37c07a"></div><div style="height:3.4px;border-radius:2px;background:#37c07a;width:60%"></div></div></div><div style="height:2.6px;border-radius:2px;background:#b5e3ca"></div></div></div>
+          <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center"><div style="width:15px;height:19px;background:#fff;border-radius:3px;clip-path:polygon(0 0,66% 0,100% 26%,100% 100%,0 100%);display:flex;flex-direction:column;gap:2px;padding:5px 3px 4px;box-sizing:border-box"><div style="flex:1;display:flex;gap:1.5px"><div style="width:2.4px;background:#37c07a;border-radius:1px"></div><div style="flex:1;display:flex;flex-direction:column;gap:2px"><div style="height:2.4px;border-radius:1px;background:#37c07a"></div><div style="height:2.4px;border-radius:1px;background:#37c07a;width:60%"></div></div></div><div style="height:1.8px;border-radius:1px;background:#b5e3ca"></div></div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p style="margin:30px 0 0;font:400 12px/1.6 system-ui;color:#7f786e">Try next: "make the stem in <a href="#8a" style="color:#8f887d">8a</a> thicker / taller" · "try <a href="#8c" style="color:#8f887d">8c</a> as a green tile like <a href="#7a" style="color:#8f887d">7a</a>" · "drop the winner into 5b's titlebar"</p>
+</section>
+
+<!-- ================= t7 — LOGO: bars in a document ================= -->
+<section style="padding:46px 52px 40px;border-bottom:1px solid rgba(255,255,255,.07)" id="t7">
+  <div style="display:flex;align-items:baseline;gap:11px;margin-bottom:6px">
+    <a href="#t7" style="font:600 10px ui-monospace,Menlo,monospace;padding:3px 8px;background:#37c07a;color:#08130c;border-radius:5px;text-decoration:none">7</a>
+    <span style="font:600 15px/1.2 system-ui,sans-serif;color:#f3efe8">Logo — <a href="#6b" style="color:#5fd699">6b</a>'s bars, now inside a document</span>
+  </div>
+  <p style="font:400 12.5px/1.5 system-ui,sans-serif;color:#8f887d;margin:0 0 26px;max-width:660px">The lined bars read as "a page with content" once they sit inside a document silhouette. All paired with the <a href="#6d" style="color:#5fd699">6d</a> "free"-pill wordmark you liked. Four takes on the fill/weight of the mark.</p>
+
+  <div style="display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start">
+
+    <!-- 7a filled green square, white page, green bars -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="7a">
+      <div style="display:flex;align-items:baseline;gap:9px"><a href="#7a" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">7a</a><span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Green tile</b> · white page, green bars</span></div>
+      <div style="width:300px;background:#141312;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:26px;display:flex;flex-direction:column;align-items:center;gap:22px">
+        <div style="width:96px;height:96px;border-radius:24px;background:linear-gradient(145deg,#42d089,#279a60);box-shadow:0 12px 30px -8px rgba(42,154,96,.7);display:flex;align-items:center;justify-content:center">
+          <div style="width:52px;height:64px;background:#fff;border-radius:8px;clip-path:polygon(0 0,68% 0,100% 25%,100% 100%,0 100%);position:relative;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:14px 12px 0">
+            <div style="position:absolute;top:0;right:0;width:17px;height:16px;background:#dfeee6;clip-path:polygon(0 0,100% 100%,0 100%)"></div>
+            <div style="height:6px;border-radius:3px;background:#2ea36a"></div>
+            <div style="height:6px;border-radius:3px;background:#2ea36a;width:74%"></div>
+            <div style="height:6px;border-radius:3px;background:#9ed9bc;width:52%"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:2px"><span style="font:800 27px/1 system-ui;letter-spacing:-1px;color:#f3efe8">pd</span><span style="font:700 20px/1 system-ui;color:#08130c;background:#37c07a;padding:4px 11px;border-radius:999px;letter-spacing:-.5px">free</span></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(145deg,#42d089,#279a60);display:flex;align-items:center;justify-content:center"><div style="width:19px;height:23px;background:#fff;border-radius:3px;clip-path:polygon(0 0,66% 0,100% 26%,100% 100%,0 100%);display:flex;flex-direction:column;justify-content:center;gap:2.5px;padding:5px 4px 0"><div style="height:2.5px;border-radius:2px;background:#2ea36a"></div><div style="height:2.5px;border-radius:2px;background:#2ea36a;width:72%"></div><div style="height:2.5px;border-radius:2px;background:#9ed9bc;width:50%"></div></div></div>
+          <div style="width:22px;height:22px;border-radius:6px;background:linear-gradient(145deg,#42d089,#279a60);display:flex;align-items:center;justify-content:center"><div style="width:12px;height:15px;background:#fff;border-radius:2px;clip-path:polygon(0 0,64% 0,100% 28%,100% 100%,0 100%)"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7b page-as-icon, light, green bars -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="7b">
+      <div style="display:flex;align-items:baseline;gap:9px"><a href="#7b" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">7b</a><span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Page-as-icon</b> · the document is the whole mark</span></div>
+      <div style="width:300px;background:#141312;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:26px;display:flex;flex-direction:column;align-items:center;gap:22px">
+        <div style="width:96px;height:96px;display:flex;align-items:center;justify-content:center">
+          <div style="width:66px;height:82px;background:#fff;border-radius:11px;clip-path:polygon(0 0,70% 0,100% 22%,100% 100%,0 100%);box-shadow:0 12px 30px -8px rgba(0,0,0,.6);position:relative;display:flex;flex-direction:column;justify-content:center;gap:8px;padding:20px 15px 0">
+            <div style="position:absolute;top:0;right:0;width:21px;height:19px;background:#e4efe9;clip-path:polygon(0 0,100% 100%,0 100%)"></div>
+            <div style="height:7px;border-radius:3.5px;background:#37c07a"></div>
+            <div style="height:7px;border-radius:3.5px;background:#37c07a;width:74%"></div>
+            <div style="height:7px;border-radius:3.5px;background:#b5e3ca;width:52%"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:2px"><span style="font:800 27px/1 system-ui;letter-spacing:-1px;color:#f3efe8">pd</span><span style="font:700 20px/1 system-ui;color:#08130c;background:#37c07a;padding:4px 11px;border-radius:999px;letter-spacing:-.5px">free</span></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center"><div style="width:24px;height:30px;background:#fff;border-radius:4px;clip-path:polygon(0 0,68% 0,100% 24%,100% 100%,0 100%);display:flex;flex-direction:column;justify-content:center;gap:3px;padding:7px 5px 0"><div style="height:3px;border-radius:2px;background:#37c07a"></div><div style="height:3px;border-radius:2px;background:#37c07a;width:72%"></div><div style="height:3px;border-radius:2px;background:#b5e3ca;width:50%"></div></div></div>
+          <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center"><div style="width:15px;height:19px;background:#fff;border-radius:3px;clip-path:polygon(0 0,66% 0,100% 26%,100% 100%,0 100%);display:flex;flex-direction:column;justify-content:center;gap:2px;padding:5px 3px 0"><div style="height:2px;border-radius:1px;background:#37c07a"></div><div style="height:2px;border-radius:1px;background:#37c07a;width:70%"></div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7c green document, white bars -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="7c">
+      <div style="display:flex;align-items:baseline;gap:9px"><a href="#7c" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">7c</a><span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Green document</b> · white bars, solid silhouette</span></div>
+      <div style="width:300px;background:#141312;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:26px;display:flex;flex-direction:column;align-items:center;gap:22px">
+        <div style="width:96px;height:96px;border-radius:24px;background:#16211b;display:flex;align-items:center;justify-content:center">
+          <div style="width:60px;height:74px;background:linear-gradient(145deg,#42d089,#279a60);border-radius:10px;clip-path:polygon(0 0,70% 0,100% 22%,100% 100%,0 100%);box-shadow:0 8px 20px -6px rgba(42,154,96,.7);position:relative;display:flex;flex-direction:column;justify-content:center;gap:7px;padding:18px 13px 0">
+            <div style="position:absolute;top:0;right:0;width:19px;height:17px;background:rgba(0,0,0,.16);clip-path:polygon(0 0,100% 100%,0 100%)"></div>
+            <div style="height:6px;border-radius:3px;background:#fff"></div>
+            <div style="height:6px;border-radius:3px;background:#fff;width:74%"></div>
+            <div style="height:6px;border-radius:3px;background:rgba(255,255,255,.55);width:52%"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:2px"><span style="font:800 27px/1 system-ui;letter-spacing:-1px;color:#f3efe8">pd</span><span style="font:700 20px/1 system-ui;color:#08130c;background:#37c07a;padding:4px 11px;border-radius:999px;letter-spacing:-.5px">free</span></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="width:34px;height:34px;border-radius:9px;background:#16211b;display:flex;align-items:center;justify-content:center"><div style="width:21px;height:26px;background:linear-gradient(145deg,#42d089,#279a60);border-radius:3px;clip-path:polygon(0 0,68% 0,100% 24%,100% 100%,0 100%);display:flex;flex-direction:column;justify-content:center;gap:2.5px;padding:6px 4px 0"><div style="height:2.5px;border-radius:2px;background:#fff"></div><div style="height:2.5px;border-radius:2px;background:#fff;width:72%"></div><div style="height:2.5px;border-radius:2px;background:rgba(255,255,255,.55);width:50%"></div></div></div>
+          <div style="width:22px;height:22px;border-radius:6px;background:#16211b;display:flex;align-items:center;justify-content:center"><div style="width:13px;height:16px;background:linear-gradient(145deg,#42d089,#279a60);border-radius:2px;clip-path:polygon(0 0,66% 0,100% 26%,100% 100%,0 100%)"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7d outline document, green bars -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="7d">
+      <div style="display:flex;align-items:baseline;gap:9px"><a href="#7d" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">7d</a><span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Outline</b> · lightest, line-art page</span></div>
+      <div style="width:300px;background:#141312;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:26px;display:flex;flex-direction:column;align-items:center;gap:22px">
+        <div style="width:96px;height:96px;display:flex;align-items:center;justify-content:center;position:relative">
+          <div style="width:58px;height:74px;border:3px solid #e8e2d8;border-radius:11px;position:relative"></div>
+          <div style="position:absolute;left:32px;top:39px;display:flex;flex-direction:column;gap:7px"><div style="width:30px;height:5px;border-radius:3px;background:#37c07a"></div><div style="width:22px;height:5px;border-radius:3px;background:#37c07a"></div><div style="width:15px;height:5px;border-radius:3px;background:rgba(55,192,122,.45)"></div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:2px"><span style="font:800 27px/1 system-ui;letter-spacing:-1px;color:#f3efe8">pd</span><span style="font:700 20px/1 system-ui;color:#08130c;background:#37c07a;padding:4px 11px;border-radius:999px;letter-spacing:-.5px">free</span></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;position:relative"><div style="width:21px;height:26px;border:2px solid #e8e2d8;border-radius:4px"></div><div style="position:absolute;left:11px;top:13px;display:flex;flex-direction:column;gap:2.5px"><div style="width:11px;height:2.5px;border-radius:2px;background:#37c07a"></div><div style="width:8px;height:2.5px;border-radius:2px;background:#37c07a"></div></div></div>
+          <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;position:relative"><div style="width:14px;height:17px;border:1.6px solid #e8e2d8;border-radius:3px"></div><div style="position:absolute;left:7px;top:9px;display:flex;flex-direction:column;gap:2px"><div style="width:7px;height:2px;border-radius:1px;background:#37c07a"></div><div style="width:5px;height:2px;border-radius:1px;background:#37c07a"></div></div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p style="margin:30px 0 0;font:400 12px/1.6 system-ui;color:#7f786e">Try next: "make the bottom bar a green underline / signature stroke" · "round the document corners more" · "drop <a href="#7b" style="color:#8f887d">7b</a> into <a href="#5b" style="color:#8f887d">5b</a>'s titlebar & dock"</p>
+</section>
+
+<!-- ================= t6 — LOGO ================= -->
+<section style="padding:46px 52px 40px;border-bottom:1px solid rgba(255,255,255,.07)" id="t6">
+  <div style="display:flex;align-items:baseline;gap:11px;margin-bottom:6px">
+    <a href="#t6" style="font:600 10px ui-monospace,Menlo,monospace;padding:3px 8px;background:#37c07a;color:#08130c;border-radius:5px;text-decoration:none">6</a>
+    <span style="font:600 15px/1.2 system-ui,sans-serif;color:#f3efe8">PDFree logo — calm green directions</span>
+  </div>
+  <p style="font:400 12.5px/1.5 system-ui,sans-serif;color:#8f887d;margin:0 0 26px;max-width:660px">Built from the same palette as the UI: calm green (#37c07a), warm off-white, dark graphite. Each mark shown as an app icon, a wordmark lockup, and small (menu-bar / favicon) scale.</p>
+
+  <div style="display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start">
+
+    <!-- 6a folded page + check -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="6a">
+      <div style="display:flex;align-items:baseline;gap:9px"><a href="#6a" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">6a</a><span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Page + check</b> · a done document</span></div>
+      <div style="width:300px;background:#141312;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:26px;display:flex;flex-direction:column;align-items:center;gap:22px">
+        <div style="width:96px;height:96px;border-radius:24px;background:linear-gradient(145deg,#42d089,#279a60);box-shadow:0 12px 30px -8px rgba(42,154,96,.7);display:flex;align-items:center;justify-content:center;position:relative">
+          <div style="width:50px;height:62px;background:#fff;border-radius:7px;clip-path:polygon(0 0,66% 0,100% 26%,100% 100%,0 100%);display:flex;align-items:center;justify-content:center"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2a9c64" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-11"/></svg></div>
+          <div style="position:absolute;top:17px;right:23px;width:11px;height:11px;background:rgba(0,0,0,.14);clip-path:polygon(0 0,100% 100%,0 100%)"></div>
+        </div>
+        <div style="font:700 27px/1 system-ui;letter-spacing:-1px;color:#f3efe8">pd<span style="color:#37c07a">free</span></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(145deg,#42d089,#279a60);display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-11"/></svg></div>
+          <div style="width:22px;height:22px;border-radius:6px;background:linear-gradient(145deg,#42d089,#279a60)"></div>
+          <div style="width:16px;height:16px;border-radius:5px;background:linear-gradient(145deg,#42d089,#279a60)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6b monogram F -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="6b">
+      <div style="display:flex;align-items:baseline;gap:9px"><a href="#6b" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">6b</a><span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Monogram</b> · lined "F", pages implied</span></div>
+      <div style="width:300px;background:#141312;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:26px;display:flex;flex-direction:column;align-items:center;gap:22px">
+        <div style="width:96px;height:96px;border-radius:24px;background:#1e2a24;border:1px solid rgba(55,192,122,.25);box-shadow:0 12px 30px -8px rgba(0,0,0,.6);display:flex;flex-direction:column;justify-content:center;gap:6px;padding:0 26px">
+          <div style="height:8px;border-radius:4px;background:#37c07a"></div>
+          <div style="height:8px;border-radius:4px;background:#37c07a;width:72%"></div>
+          <div style="height:8px;border-radius:4px;background:rgba(55,192,122,.3);width:52%"></div>
+        </div>
+        <div style="font:700 27px/1 system-ui;letter-spacing:-1px;color:#f3efe8">pd<span style="color:#37c07a">free</span></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="width:34px;height:34px;border-radius:9px;background:#1e2a24;border:1px solid rgba(55,192,122,.25);display:flex;flex-direction:column;justify-content:center;gap:2.5px;padding:0 9px"><div style="height:3px;border-radius:2px;background:#37c07a"></div><div style="height:3px;border-radius:2px;background:#37c07a;width:70%"></div><div style="height:3px;border-radius:2px;background:rgba(55,192,122,.35);width:50%"></div></div>
+          <div style="width:22px;height:22px;border-radius:6px;background:#1e2a24;border:1px solid rgba(55,192,122,.25)"></div>
+          <div style="width:16px;height:16px;border-radius:5px;background:#1e2a24;border:1px solid rgba(55,192,122,.25)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6c outline doc + badge -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="6c">
+      <div style="display:flex;align-items:baseline;gap:9px"><a href="#6c" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">6c</a><span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Outline + badge</b> · lighter, friendlier</span></div>
+      <div style="width:300px;background:#141312;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:26px;display:flex;flex-direction:column;align-items:center;gap:22px">
+        <div style="width:96px;height:96px;display:flex;align-items:center;justify-content:center;position:relative">
+          <div style="width:58px;height:72px;border:3px solid #e8e2d8;border-radius:11px"></div>
+          <div style="position:absolute;left:26px;top:32px;display:flex;flex-direction:column;gap:6px"><div style="width:26px;height:3px;border-radius:2px;background:#8f887d"></div><div style="width:20px;height:3px;border-radius:2px;background:#8f887d"></div></div>
+          <div style="position:absolute;right:12px;bottom:10px;width:34px;height:34px;border-radius:50%;background:#37c07a;border:3px solid #141312;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#08130c" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-11"/></svg></div>
+        </div>
+        <div style="font:600 27px/1 system-ui;letter-spacing:-.5px;color:#f3efe8">PDFree</div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;position:relative"><div style="width:20px;height:26px;border:2px solid #e8e2d8;border-radius:4px"></div><div style="position:absolute;right:4px;bottom:3px;width:13px;height:13px;border-radius:50%;background:#37c07a;border:2px solid #141312"></div></div>
+          <div style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;position:relative"><div style="width:13px;height:17px;border:1.6px solid #e8e2d8;border-radius:3px"></div><div style="position:absolute;right:2px;bottom:2px;width:9px;height:9px;border-radius:50%;background:#37c07a;border:1.5px solid #141312"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6d wordmark-forward -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="6d">
+      <div style="display:flex;align-items:baseline;gap:9px"><a href="#6d" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">6d</a><span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Wordmark</b> · "free" as a green pill</span></div>
+      <div style="width:300px;background:#141312;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:26px;display:flex;flex-direction:column;align-items:center;gap:22px">
+        <div style="width:96px;height:96px;border-radius:24px;background:linear-gradient(145deg,#2a2723,#1b1917);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center"><div style="display:flex;align-items:baseline"><span style="font:800 34px/1 system-ui;color:#f3efe8;letter-spacing:-1.5px">pd</span><span style="font:800 34px/1 system-ui;color:#37c07a;letter-spacing:-1.5px">f</span></div></div>
+        <div style="display:flex;align-items:center;gap:2px"><span style="font:800 27px/1 system-ui;letter-spacing:-1px;color:#f3efe8">pd</span><span style="font:700 20px/1 system-ui;color:#08130c;background:#37c07a;padding:4px 11px;border-radius:999px;letter-spacing:-.5px">free</span></div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(145deg,#2a2723,#1b1917);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center"><span style="font:800 14px system-ui;color:#f3efe8">pd<span style="color:#37c07a">f</span></span></div>
+          <div style="width:22px;height:22px;border-radius:6px;background:linear-gradient(145deg,#2a2723,#1b1917);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center"><span style="font:800 9px system-ui;color:#37c07a">f</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p style="margin:30px 0 0;font:400 12px/1.6 system-ui;color:#7f786e">Try next: "combine <a href="#6a" style="color:#8f887d">6a</a>'s icon with <a href="#6d" style="color:#8f887d">6d</a>'s pill wordmark" · "make <a href="#6c" style="color:#8f887d">6c</a> a filled icon" · "show the winner in the app titlebar"</p>
+</section>
+
+<!-- ================= t5 — CONSOLIDATED ================= -->
+<section style="padding:46px 52px 40px;border-bottom:1px solid rgba(255,255,255,.07)" id="t5">
+  <div style="display:flex;align-items:baseline;gap:11px;margin-bottom:6px">
+    <a href="#t5" style="font:600 10px ui-monospace,Menlo,monospace;padding:3px 8px;background:#37c07a;color:#08130c;border-radius:5px;text-decoration:none">5</a>
+    <span style="font:600 15px/1.2 system-ui,sans-serif;color:#f3efe8">Consolidated direction — your picks assembled</span>
+  </div>
+  <p style="font:400 12.5px/1.5 system-ui,sans-serif;color:#8f887d;margin:0 0 26px;max-width:700px"><a href="#1a" style="color:#5fd699">1a</a> right inspector · <a href="#2a" style="color:#5fd699">2a</a> quiet fields + <a href="#2b" style="color:#5fd699">2b</a> "Sign here" button · sign flow uses the <a href="#3a" style="color:#5fd699">3a</a> sheet first-time then the <a href="#3b" style="color:#5fd699">3b</a> popover that hops field-to-field · <a href="#4b" style="color:#5fd699">4b</a> drop surface doubles as the empty/open state, with <a href="#4a" style="color:#5fd699">4a</a>'s actions folded into the right panel's "+".</p>
+
+  <div style="display:flex;flex-direction:column;gap:34px">
+
+    <!-- 5a — empty / open state -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="5a">
+      <div style="display:flex;align-items:baseline;gap:9px"><a href="#5a" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">5a</a><span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Empty state</b> · no doc open → the drop surface IS the window</span></div>
+      <div style="width:1170px;border-radius:13px;overflow:hidden;box-shadow:0 40px 90px -25px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.07);background:#201d1a">
+        <div style="height:44px;display:flex;align-items:center;padding:0 16px;background:linear-gradient(#2a2723,#242118);border-bottom:1px solid rgba(0,0,0,.4);position:relative">
+          <div style="display:flex;gap:8px"><div style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></div><div style="width:12px;height:12px;border-radius:50%;background:#febc2e"></div><div style="width:12px;height:12px;border-radius:50%;background:#28c840"></div></div>
+          <div style="position:absolute;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:7px;pointer-events:none"><div style="display:flex;align-items:center;gap:2px"><span style="font:800 13px/1 system-ui;letter-spacing:-.6px;color:#cfc8bf">pd</span><span style="font:700 11px/1 system-ui;color:#08130c;background:#37c07a;padding:2px 7px;border-radius:999px;letter-spacing:-.3px">free</span></div></div>
+        </div>
+        <div style="height:560px;display:flex">
+          <div style="flex:1;background:radial-gradient(120% 120% at 50% 30%,#161311,#0f0d0b);display:flex;align-items:center;justify-content:center;padding:40px">
+            <div style="width:520px;display:flex;flex-direction:column;align-items:center;gap:24px">
+              <div style="display:flex;align-items:center;gap:3px"><span style="font:800 34px/1 system-ui;letter-spacing:-1.4px;color:#f3efe8">pd</span><span style="font:700 25px/1 system-ui;color:#08130c;background:#37c07a;padding:5px 14px;border-radius:999px;letter-spacing:-.5px">free</span></div>
+              <div style="width:100%;border:2px dashed rgba(55,192,122,.5);background:rgba(55,192,122,.05);border-radius:18px;padding:40px 30px;display:flex;flex-direction:column;align-items:center;gap:14px">
+                <div style="width:52px;height:64px;background:linear-gradient(145deg,#42d089,#279a60);border-radius:9px;clip-path:polygon(0 0,70% 0,100% 22%,100% 100%,0 100%);box-shadow:0 8px 20px -6px rgba(42,154,96,.6);position:relative;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:16px 11px 0"><div style="position:absolute;top:0;right:0;width:16px;height:15px;background:rgba(0,0,0,.16);clip-path:polygon(0 0,100% 100%,0 100%)"></div><div style="height:6px;border-radius:3px;background:#fff"></div><div style="height:6px;border-radius:3px;background:#fff;width:74%"></div><div style="height:6px;border-radius:3px;background:rgba(255,255,255,.55);width:52%"></div></div>
+                <div style="font:650 19px system-ui;color:#f3efe8">Drop a PDF or image to start</div>
+                <div style="font:400 13px system-ui;color:#8f887d">or <span style="color:#37c07a;font-weight:600">browse your Mac</span> — everything stays on your device</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;width:100%">
+                <div style="font:600 10px system-ui;letter-spacing:1px;color:#6f6860">RECENT</div>
+                <div style="display:flex;gap:10px">
+                  <div style="flex:1;display:flex;align-items:center;gap:10px;background:#201d1a;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px 12px"><div style="width:22px;height:28px;background:#fff;border-radius:3px"></div><div style="font:500 12.5px system-ui;color:#d8d2c8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">f1040-2025.pdf</div></div>
+                  <div style="flex:1;display:flex;align-items:center;gap:10px;background:#201d1a;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px 12px"><div style="width:22px;height:28px;background:#fff;border-radius:3px"></div><div style="font:500 12.5px system-ui;color:#d8d2c8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">lease.pdf</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="width:274px;background:#201d1a;border-left:1px solid rgba(255,255,255,.06);padding:18px 16px;display:flex;flex-direction:column;gap:15px">
+            <button style="height:40px;border-radius:10px;border:none;background:#37c07a;color:#08130c;font:650 13.5px system-ui;display:flex;align-items:center;justify-content:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Open a file</button>
+            <div style="opacity:.4;pointer-events:none;display:flex;flex-direction:column;gap:15px">
+              <div><div style="font:600 10px system-ui;letter-spacing:1.2px;color:#6f6860;margin:2px 4px 8px">TOOLS</div>
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <div style="display:flex;align-items:center;gap:11px;padding:10px 11px;color:#d8d2c8;font:500 13.5px system-ui"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8f887d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 12h5"/><path d="M9 9.5v5"/></svg>Fill fields</div>
+                  <div style="display:flex;align-items:center;gap:11px;padding:10px 11px;color:#d8d2c8;font:500 13.5px system-ui"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8f887d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M15 5.5l3.5 3.5L9 18.5 5 19l.5-4z"/></svg>Sign</div>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:auto;text-align:center;font:400 11px/1.5 system-ui;color:#6f6860">Tools wake up<br>once a document is open.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5b — loaded hero with + popover open -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="5b">
+      <div style="display:flex;align-items:baseline;gap:9px"><a href="#5b" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">5b</a><span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Working state</b> · quiet fields, "Sign here" button, "+" opens the add menu</span></div>
+      <div style="width:1170px;border-radius:13px;overflow:hidden;box-shadow:0 40px 90px -25px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.07);background:#201d1a">
+        <div style="height:44px;display:flex;align-items:center;padding:0 16px;background:linear-gradient(#2a2723,#242118);border-bottom:1px solid rgba(0,0,0,.4);position:relative">
+          <div style="display:flex;gap:8px"><div style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></div><div style="width:12px;height:12px;border-radius:50%;background:#febc2e"></div><div style="width:12px;height:12px;border-radius:50%;background:#28c840"></div></div>
+          <div style="position:absolute;left:0;right:0;text-align:center;font:600 13px system-ui;color:#cfc8bf;pointer-events:none">f1040-2025.pdf</div>
+        </div>
+        <div style="height:706px;display:flex">
+          <div style="width:132px;background:#1a1815;border-right:1px solid rgba(255,255,255,.06);padding:16px 0;display:flex;flex-direction:column;align-items:center;gap:13px">
+            <div style="font:600 9px system-ui;letter-spacing:1px;color:#6f6860">PAGES</div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:88px;height:114px;background:#fff;border-radius:3px;box-shadow:0 0 0 2px #37c07a,0 4px 12px rgba(0,0,0,.5);padding:8px;display:flex;flex-direction:column;gap:3px"><div style="height:6px;background:#333;width:60%"></div><div style="height:3px;background:#ddd;margin-top:3px"></div><div style="height:3px;background:#e8f6ee;border:.5px solid #9bd9b8"></div><div style="height:3px;background:#ddd"></div><div style="height:3px;background:#e8f6ee;border:.5px solid #9bd9b8"></div><div style="height:3px;background:#fdf0d8;border:.5px solid #e2c078;margin-top:auto"></div></div><div style="font:600 10px system-ui;color:#e8e2d8">1</div></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:88px;height:114px;background:#fff;border-radius:3px;box-shadow:0 4px 12px rgba(0,0,0,.4);padding:8px;display:flex;flex-direction:column;gap:3px"><div style="height:3px;background:#ddd"></div><div style="height:3px;background:#e8f6ee;border:.5px solid #9bd9b8"></div><div style="height:3px;background:#ddd;width:70%"></div></div><div style="font:400 10px system-ui;color:#8f887d">2</div></div>
+          </div>
+          <div style="flex:1;background:radial-gradient(120% 120% at 50% 0%,#161311,#0f0d0b);position:relative;display:flex;align-items:center;justify-content:center;padding:30px">
+            <div style="width:462px;height:598px;box-shadow:0 18px 50px rgba(0,0,0,.55);border-radius:3px;overflow:hidden"><dc-import name="FormPage" accent="#37c07a" hint-size="462px,598px" style="width:462px;height:598px"></dc-import></div>
+            <div style="position:absolute;top:18px;left:18px;display:flex;align-items:center;gap:7px;background:rgba(55,192,122,.14);border:1px solid rgba(55,192,122,.4);color:#6fdca2;border-radius:999px;padding:5px 11px;font:600 11px system-ui;backdrop-filter:blur(8px)"><div style="width:6px;height:6px;border-radius:50%;background:#37c07a"></div>199 fillable fields detected</div>
+            <div style="position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:2px;background:rgba(26,24,21,.82);border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:4px;font:500 12px system-ui;color:#cfc8bf;backdrop-filter:blur(10px)"><div style="padding:4px 8px;color:#8f887d">‹</div><div style="padding:4px 6px;color:#e8e2d8">1 / 2</div><div style="padding:4px 8px;color:#8f887d">›</div><div style="width:1px;height:16px;background:rgba(255,255,255,.12);margin:0 4px"></div><div style="padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.08);color:#e8e2d8">Fit to page</div></div>
+          </div>
+          <div style="width:274px;background:#201d1a;border-left:1px solid rgba(255,255,255,.06);padding:18px 16px;display:flex;flex-direction:column;gap:15px;position:relative">
+            <button style="height:40px;border-radius:10px;border:1px solid rgba(55,192,122,.55);background:color-mix(in srgb,#37c07a 15%,#201d1a);color:#7fe0aa;font:600 13.5px system-ui;display:flex;align-items:center;justify-content:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add or merge</button>
+            <!-- open + popover -->
+            <div style="position:absolute;top:64px;left:16px;right:16px;background:#2b2724;border:1px solid rgba(255,255,255,.12);border-radius:12px;box-shadow:0 20px 44px rgba(0,0,0,.6);padding:6px;z-index:5">
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;background:rgba(255,255,255,.05)"><span style="color:#37c07a;display:flex"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span style="font:600 12.5px system-ui;color:#f3efe8">Open a PDF…</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px"><span style="color:#c9c2b6;display:flex"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4v6a3 3 0 0 0 3 3h9M8 20v-6"/><path d="M17 10l3 3-3 3"/></svg></span><span style="font:500 12.5px system-ui;color:#e8e2d8">Merge another PDF…</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px"><span style="color:#c9c2b6;display:flex"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M12 8v6M9 11h6"/></svg></span><span style="font:500 12.5px system-ui;color:#e8e2d8">Insert blank page</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px"><span style="color:#c9c2b6;display:flex"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></span><span style="font:500 12.5px system-ui;color:#e8e2d8">Image as a page…</span></div>
+              <div style="height:1px;background:rgba(255,255,255,.09);margin:5px 10px"></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px"><span style="color:#c9c2b6;display:flex"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l-2 4 2 4M19 8l2 4-2 4"/></svg></span><span style="font:500 12.5px system-ui;color:#e8e2d8">Split or extract pages…</span></div>
+            </div>
+            <div style="opacity:.45;pointer-events:none;display:flex;flex-direction:column;gap:15px;margin-top:236px">
+              <div><div style="font:600 10px system-ui;letter-spacing:1.2px;color:#6f6860;margin:2px 4px 8px">TOOLS</div>
+                <div style="display:flex;align-items:center;gap:11px;padding:10px 11px;border-radius:9px;background:color-mix(in srgb,#37c07a 13%,transparent);color:#f3efe8;font:600 13.5px system-ui"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#37c07a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 12h5"/><path d="M9 9.5v5"/></svg>Fill fields<span style="margin-left:auto;background:rgba(55,192,122,.22);color:#7fe0aa;font:600 11px system-ui;padding:2px 8px;border-radius:999px">199</span></div>
+              </div>
+            </div>
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:9px">
+              <button style="height:44px;border-radius:11px;border:none;background:#37c07a;color:#08130c;font:650 14px system-ui;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 6px 18px -6px rgba(55,192,122,.7)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4M4 14v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg>Export</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5c — sign flow: interactive popover + first-time sheet -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="5c">
+      <div style="display:flex;align-items:baseline;gap:9px"><a href="#5c" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">5c</a><span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Sign flow</b> · click "Apply" — the popover hops to the next field <b style="color:#37c07a;font-weight:600">· live, try it</b></span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+        <!-- interactive returning-user popover -->
+        <div style="width:790px;background:#14120f;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:28px">
+          <div style="font:500 11.5px system-ui;color:#8f887d;margin-bottom:18px">Returning user — signature &amp; initials already saved. Applying one hops the popover to the next required field.</div>
+          <div style="position:relative;width:744px;height:452px">
+            <!-- page -->
+            <div style="position:absolute;left:0;top:0;width:456px;height:452px;background:#fff;border-radius:6px;box-shadow:0 14px 40px rgba(0,0,0,.5);padding:26px 28px;overflow:hidden">
+              <div style="font:700 15px Helvetica;color:#232323;margin-bottom:3px">Residential Lease Agreement</div>
+              <div style="font:400 7.5px/1.7 Helvetica;color:#666;margin-bottom:14px">This agreement is entered into on the date last written below between the Landlord and the Tenant for the premises described herein.</div>
+              <div style="font:700 8px Helvetica;color:#333;margin-bottom:6px">SECTION 4 — TENANT ACKNOWLEDGEMENT</div>
+              <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:20px"><div style="height:5px;background:#eee;border-radius:2px"></div><div style="height:5px;background:#eee;border-radius:2px"></div><div style="height:5px;background:#eee;border-radius:2px;width:80%"></div></div>
+              <div style="font:700 8px Helvetica;color:#333;margin-bottom:6px">SECTION 9 — SIGNATURES</div>
+              <div style="display:flex;flex-direction:column;gap:5px"><div style="height:5px;background:#eee;border-radius:2px;width:70%"></div><div style="height:5px;background:#eee;border-radius:2px;width:88%"></div></div>
+              <!-- static field captions -->
+              <div style="position:absolute;left:300px;top:60px;font:600 6px Helvetica;color:#888;letter-spacing:.4px">INITIAL HERE</div>
+              <div style="position:absolute;left:44px;top:214px;font:600 6px Helvetica;color:#888;letter-spacing:.4px">TENANT SIGNATURE</div>
+              <div style="position:absolute;left:300px;top:354px;font:600 6px Helvetica;color:#888;letter-spacing:.4px">INITIAL HERE</div>
+              <!-- interactive fields -->
+              <sc-for list="{{ fields }}" as="f" hint-placeholder-count="3">
+                <div style="{{ f.wrapStyle }}">
+                  <div style="{{ f.boxStyle }}">
+                    <sc-if value="{{ f.stamped }}" hint-placeholder-val="{{ false }}">
+                      <sc-if value="{{ f.isSig }}" hint-placeholder-val="{{ false }}"><svg width="180" height="40" viewBox="0 0 240 80" fill="none" stroke="#1a2b6b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 55c14-40 20 6 28-4s6-30 14-24 4 44 16 40 18-46 30-40 2 40 16 36 20-30 34-26 10 30 24 24 20-30 36-24"/></svg></sc-if>
+                      <sc-if value="{{ f.notSig }}" hint-placeholder-val="{{ false }}"><span style="font:italic 400 20px 'Snell Roundhand','Brush Script MT',cursive;color:#1a2b6b">A.N.</span></sc-if>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <!-- popover -->
+            <div style="{{ popStyle }}">
+              <div style="position:absolute;left:-7px;top:80px;width:14px;height:14px;background:#252220;border-left:1px solid rgba(255,255,255,.1);border-bottom:1px solid rgba(255,255,255,.1);transform:rotate(45deg)"></div>
+              <div style="background:#252220;border:1px solid rgba(255,255,255,.1);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.6);padding:16px;position:relative">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><span style="font:600 12.5px system-ui;color:#f3efe8">{{ stepLabel }}</span><span style="font:600 10.5px system-ui;color:#37c07a;background:rgba(55,192,122,.14);padding:3px 9px;border-radius:999px">{{ progress }}</span></div>
+                <sc-if value="{{ notDone }}" hint-placeholder-val="{{ true }}">
+                  <div style="font:500 10px system-ui;color:#6f6860;letter-spacing:.6px;margin-bottom:8px">TAP TO PLACE YOUR SAVED MARK</div>
+                  <sc-if value="{{ curIsSig }}" hint-placeholder-val="{{ true }}">
+                    <div style="height:62px;background:#fff;border-radius:10px;border:2px solid #37c07a;display:flex;align-items:center;justify-content:center;margin-bottom:13px"><svg width="150" height="46" viewBox="0 0 240 80" fill="none" stroke="#1a2b6b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 55c14-40 20 6 28-4s6-30 14-24 4 44 16 40 18-46 30-40 2 40 16 36 20-30 34-26 10 30 24 24 20-30 36-24"/></svg></div>
+                  </sc-if>
+                  <sc-if value="{{ curIsInitials }}" hint-placeholder-val="{{ false }}">
+                    <div style="height:62px;background:#fff;border-radius:10px;border:2px solid #37c07a;display:flex;align-items:center;justify-content:center;margin-bottom:13px"><span style="font:italic 400 30px 'Snell Roundhand','Brush Script MT',cursive;color:#1a2b6b">A.N.</span></div>
+                  </sc-if>
+                  <button onClick="{{ apply }}" style="width:100%;height:40px;border:none;border-radius:10px;background:#37c07a;color:#08130c;font:650 13px system-ui;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px">Apply &amp; continue<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+                  <div style="text-align:center;margin-top:9px;font:500 10.5px system-ui;color:#6f6860">Draw new · Type · Upload</div>
+                </sc-if>
+                <sc-if value="{{ done }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:6px 0 2px">
+                    <div style="width:44px;height:44px;border-radius:50%;background:rgba(55,192,122,.16);color:#37c07a;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4 10-11"/></svg></div>
+                    <div style="font:600 13px system-ui;color:#f3efe8">Everything's signed</div>
+                    <div style="font:400 10px/1.4 system-ui;color:#6f6860;text-align:center">Saved locally · time &amp; name recorded</div>
+                    <button onClick="{{ reset }}" style="margin-top:2px;border:1px solid rgba(255,255,255,.14);background:transparent;color:#d8d2c8;font:600 11.5px system-ui;padding:8px 16px;border-radius:9px;cursor:pointer">Run it again</button>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- first-time sheet (compact static) -->
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="font:500 11.5px system-ui;color:#8f887d;max-width:320px">First time — <b style="color:#c9c2b6;font-weight:600">nothing saved yet</b> → the full sheet opens instead of the popover.</div>
+          <div style="width:320px;background:#252220;border:1px solid rgba(255,255,255,.09);border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,.5);overflow:hidden">
+            <div style="padding:16px 18px 0;font:650 14.5px system-ui;color:#f3efe8">Add your signature</div>
+            <div style="display:flex;gap:4px;padding:13px 18px 0"><div style="flex:1;text-align:center;padding:7px;border-radius:8px;background:#37c07a;color:#08130c;font:600 11px system-ui">Draw</div><div style="flex:1;text-align:center;padding:7px;border-radius:8px;color:#a49c90;font:500 11px system-ui">Type</div><div style="flex:1;text-align:center;padding:7px;border-radius:8px;color:#a49c90;font:500 11px system-ui">Upload</div></div>
+            <div style="margin:13px 18px;height:110px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;position:relative"><svg width="180" height="56" viewBox="0 0 240 80" fill="none" stroke="#1a2b6b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 55c14-40 20 6 28-4s6-30 14-24 4 44 16 40 18-46 30-40 2 40 16 36 20-30 34-26 10 30 24 24 20-30 36-24"/></svg><div style="position:absolute;left:16px;right:16px;bottom:18px;border-bottom:1.5px dashed #ccc"></div></div>
+            <div style="margin:0 18px;display:flex;align-items:center;gap:8px"><div style="width:32px;height:19px;border-radius:999px;background:#37c07a;position:relative"><div style="position:absolute;right:2px;top:2px;width:15px;height:15px;border-radius:50%;background:#fff"></div></div><span style="font:500 11.5px system-ui;color:#d8d2c8">Save for reuse</span></div>
+            <div style="display:flex;gap:8px;padding:15px 18px 18px;justify-content:flex-end"><div style="padding:9px 14px;border-radius:9px;background:rgba(255,255,255,.08);color:#d8d2c8;font:500 12px system-ui">Cancel</div><div style="padding:9px 16px;border-radius:9px;background:#37c07a;color:#08130c;font:650 12px system-ui">Place</div></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+  <p style="margin:30px 0 0;font:400 12px/1.6 system-ui;color:#7f786e">Try next: "add a 'Next field →' auto-scroll as it hops pages" · "show the export confirmation" · "put the <a href="#6a" style="color:#8f887d">6a</a> logo into 5b's titlebar"</p>
+</section>
+
+<section style="padding:46px 52px 40px;border-bottom:1px solid rgba(255,255,255,.07)" id="t1">
+  <div style="display:flex;align-items:baseline;gap:11px;margin-bottom:6px">
+    <a href="#t1" style="font:600 10px ui-monospace,Menlo,monospace;padding:3px 8px;background:#37c07a;color:#08130c;border-radius:5px;text-decoration:none">1</a>
+    <span style="font:600 15px/1.2 system-ui,sans-serif;color:#f3efe8">Document view — default state</span>
+  </div>
+  <p style="font:400 12.5px/1.5 system-ui,sans-serif;color:#8f887d;margin:0 0 26px;max-width:640px">First thing you see after opening a PDF: whole page fit to view, fields already detected and highlighted, minimal chrome. Three directions differ mainly in <b style="color:#c9c2b6;font-weight:600">where the tools live</b> — right inspector, floating island, or left rail — each with its own accent.</p>
+
+  <div style="display:flex;flex-wrap:wrap;gap:38px;align-items:flex-start">
+
+    <!-- ============ 1a — RIGHT SIDEBAR / GREEN ============ -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="1a">
+      <div style="display:flex;align-items:baseline;gap:9px">
+        <a href="#1a" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">1a</a>
+        <span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Right inspector</b> · tools in a calm right panel · green</span>
+      </div>
+
+      <div style="width:1170px;border-radius:13px;overflow:hidden;box-shadow:0 40px 90px -25px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.07);background:#201d1a">
+        <!-- titlebar -->
+        <div style="height:44px;display:flex;align-items:center;padding:0 16px;background:linear-gradient(#2a2723,#242118);border-bottom:1px solid rgba(0,0,0,.4);position:relative">
+          <div style="display:flex;gap:8px"><div style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></div><div style="width:12px;height:12px;border-radius:50%;background:#febc2e"></div><div style="width:12px;height:12px;border-radius:50%;background:#28c840"></div></div>
+          <div style="position:absolute;left:0;right:0;text-align:center;font:600 13px system-ui;color:#cfc8bf;pointer-events:none">f1040-2025.pdf</div>
+        </div>
+        <!-- body -->
+        <div style="height:706px;display:flex">
+          <!-- thumbnail rail -->
+          <div style="width:132px;background:#1a1815;border-right:1px solid rgba(255,255,255,.06);padding:16px 0;display:flex;flex-direction:column;align-items:center;gap:13px">
+            <div style="font:600 9px system-ui;letter-spacing:1px;color:#6f6860">PAGES</div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+              <div style="width:88px;height:114px;background:#fff;border-radius:3px;box-shadow:0 0 0 2px #37c07a,0 4px 12px rgba(0,0,0,.5);padding:8px;display:flex;flex-direction:column;gap:3px"><div style="height:6px;background:#333;width:60%"></div><div style="height:3px;background:#ddd;margin-top:3px"></div><div style="height:3px;background:#ddd"></div><div style="height:3px;background:#e8f6ee;border:.5px solid #9bd9b8"></div><div style="height:3px;background:#ddd"></div><div style="height:3px;background:#e8f6ee;border:.5px solid #9bd9b8"></div><div style="height:3px;background:#ddd"></div><div style="height:3px;background:#fdf0d8;border:.5px solid #e2c078;margin-top:auto"></div></div>
+              <div style="font:600 10px system-ui;color:#e8e2d8">1</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+              <div style="width:88px;height:114px;background:#fff;border-radius:3px;box-shadow:0 4px 12px rgba(0,0,0,.4);padding:8px;display:flex;flex-direction:column;gap:3px"><div style="height:3px;background:#ddd"></div><div style="height:3px;background:#ddd"></div><div style="height:3px;background:#e8f6ee;border:.5px solid #9bd9b8"></div><div style="height:3px;background:#ddd"></div><div style="height:3px;background:#ddd;width:70%"></div><div style="height:3px;background:#e8f6ee;border:.5px solid #9bd9b8"></div></div>
+              <div style="font:400 10px system-ui;color:#8f887d">2</div>
+            </div>
+          </div>
+          <!-- canvas -->
+          <div style="flex:1;background:radial-gradient(120% 120% at 50% 0%,#161311,#0f0d0b);position:relative;display:flex;align-items:center;justify-content:center;padding:30px">
+            <div style="width:462px;height:598px;box-shadow:0 18px 50px rgba(0,0,0,.55);border-radius:3px;overflow:hidden">
+              <dc-import name="FormPage" accent="#37c07a" hint-size="462px,598px" style="width:462px;height:598px"></dc-import>
+            </div>
+            <div style="position:absolute;top:18px;left:18px;display:flex;align-items:center;gap:7px;background:rgba(55,192,122,.14);border:1px solid rgba(55,192,122,.4);color:#6fdca2;border-radius:999px;padding:5px 11px;font:600 11px system-ui;backdrop-filter:blur(8px)"><div style="width:6px;height:6px;border-radius:50%;background:#37c07a"></div>199 fillable fields detected</div>
+            <div style="position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:2px;background:rgba(26,24,21,.82);border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:4px;font:500 12px system-ui;color:#cfc8bf;backdrop-filter:blur(10px)">
+              <div style="padding:4px 8px;border-radius:999px;color:#8f887d">‹</div>
+              <div style="padding:4px 6px;color:#e8e2d8">1 / 2</div>
+              <div style="padding:4px 8px;border-radius:999px;color:#8f887d">›</div>
+              <div style="width:1px;height:16px;background:rgba(255,255,255,.12);margin:0 4px"></div>
+              <div style="padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.08);color:#e8e2d8;display:flex;align-items:center;gap:5px">Fit to page <svg width="11" height="11" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7l4 4 4-4"/></svg></div>
+            </div>
+          </div>
+          <!-- right inspector -->
+          <div style="width:274px;background:#201d1a;border-left:1px solid rgba(255,255,255,.06);padding:18px 16px;display:flex;flex-direction:column;gap:15px">
+            <button style="height:40px;border-radius:10px;border:1px solid rgba(55,192,122,.55);background:color-mix(in srgb,#37c07a 15%,#201d1a);color:#7fe0aa;font:600 13.5px system-ui;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add or merge files
+            </button>
+
+            <div>
+              <div style="font:600 10px system-ui;letter-spacing:1.2px;color:#6f6860;margin:2px 4px 8px">TOOLS</div>
+              <div style="display:flex;flex-direction:column;gap:2px">
+                <div style="display:flex;align-items:center;gap:11px;padding:10px 11px;border-radius:9px;background:color-mix(in srgb,#37c07a 13%,transparent);color:#f3efe8;font:600 13.5px system-ui">
+                  <span style="color:#37c07a;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 12h5"/><path d="M9 9.5v5"/></svg></span>Fill fields
+                  <span style="margin-left:auto;background:rgba(55,192,122,.22);color:#7fe0aa;font:600 11px system-ui;padding:2px 8px;border-radius:999px">199</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:11px;padding:10px 11px;border-radius:9px;color:#d8d2c8;font:500 13.5px system-ui">
+                  <span style="color:#8f887d;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M15 5.5l3.5 3.5L9 18.5 5 19l.5-4z"/></svg></span>Sign
+                  <span style="margin-left:auto;background:rgba(232,180,90,.2);color:#e8b45a;font:600 11px system-ui;padding:2px 8px;border-radius:999px">1</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:11px;padding:10px 11px;border-radius:9px;color:#d8d2c8;font:500 13.5px system-ui">
+                  <span style="color:#8f887d;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h5"/><path d="M14.5 4.5l4 4-8.5 8.5-4 .5.5-4z"/></svg></span>Annotate
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div style="font:600 10px system-ui;letter-spacing:1.2px;color:#6f6860;margin:2px 4px 8px">PAGES</div>
+              <div style="display:flex;flex-direction:column;gap:2px">
+                <div style="display:flex;align-items:center;gap:11px;padding:10px 11px;border-radius:9px;color:#d8d2c8;font:500 13.5px system-ui"><span style="color:#8f887d;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M12 8v6M9 11h6"/></svg></span>Insert page</div>
+                <div style="display:flex;align-items:center;gap:11px;padding:10px 11px;border-radius:9px;color:#d8d2c8;font:500 13.5px system-ui"><span style="color:#8f887d;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9a8 8 0 0 1 13.5-3.5L20 8"/><path d="M20 3v5h-5"/></svg></span>Rotate</div>
+                <div style="display:flex;align-items:center;gap:11px;padding:10px 11px;border-radius:9px;color:#d8d2c8;font:500 13.5px system-ui"><span style="color:#8f887d;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 7V5h4v2M6 7l1 13h10l1-13"/></svg></span>Delete page</div>
+              </div>
+            </div>
+
+            <div style="margin-top:auto;display:flex;flex-direction:column;gap:9px">
+              <button style="height:44px;border-radius:11px;border:none;background:#37c07a;color:#08130c;font:650 14px system-ui;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;box-shadow:0 6px 18px -6px rgba(55,192,122,.7)">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4M4 14v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg>Export
+              </button>
+              <div style="text-align:center;font:400 10.5px system-ui;color:#6f6860">No watermark · no limits · saved locally</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 1b — FLOATING ISLAND / CORAL ============ -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="1b">
+      <div style="display:flex;align-items:baseline;gap:9px">
+        <a href="#1b" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(240,136,90,.16);color:#f2a37f;border:1px solid rgba(240,136,90,.4);border-radius:6px;text-decoration:none">1b</a>
+        <span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Floating island</b> · zero chrome, tools in a bottom pill · coral</span>
+      </div>
+
+      <div style="width:1170px;border-radius:13px;overflow:hidden;box-shadow:0 40px 90px -25px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.07);background:#201d1a">
+        <div style="height:44px;display:flex;align-items:center;padding:0 16px;background:linear-gradient(#2a2723,#242118);border-bottom:1px solid rgba(0,0,0,.4);position:relative">
+          <div style="display:flex;gap:8px"><div style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></div><div style="width:12px;height:12px;border-radius:50%;background:#febc2e"></div><div style="width:12px;height:12px;border-radius:50%;background:#28c840"></div></div>
+          <div style="position:absolute;left:0;right:0;text-align:center;font:600 13px system-ui;color:#cfc8bf;pointer-events:none">lease-agreement.pdf</div>
+        </div>
+        <div style="height:706px;display:flex;position:relative">
+          <!-- canvas full bleed -->
+          <div style="flex:1;background:radial-gradient(120% 120% at 50% 0%,#161311,#0f0d0b);position:relative;display:flex;align-items:center;justify-content:center;padding:30px">
+            <div style="width:470px;height:606px;box-shadow:0 18px 50px rgba(0,0,0,.55);border-radius:3px;overflow:hidden">
+              <dc-import name="FormPage" accent="#f0885a" hint-size="470px,606px" style="width:470px;height:606px"></dc-import>
+            </div>
+
+            <!-- floating collapsible thumbnails -->
+            <div style="position:absolute;left:16px;top:50%;transform:translateY(-50%);background:rgba(26,24,21,.78);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:9px;display:flex;flex-direction:column;gap:8px;backdrop-filter:blur(14px);box-shadow:0 12px 30px rgba(0,0,0,.5)">
+              <div style="width:58px;height:75px;background:#fff;border-radius:3px;box-shadow:0 0 0 2px #f0885a;padding:5px;display:flex;flex-direction:column;gap:2px"><div style="height:4px;background:#333;width:60%"></div><div style="height:2px;background:#ddd;margin-top:2px"></div><div style="height:2px;background:#fce4d8"></div><div style="height:2px;background:#ddd"></div><div style="height:2px;background:#fce4d8"></div></div>
+              <div style="width:58px;height:75px;background:#fff;border-radius:3px;box-shadow:0 2px 8px rgba(0,0,0,.4);padding:5px;display:flex;flex-direction:column;gap:2px"><div style="height:2px;background:#ddd"></div><div style="height:2px;background:#fce4d8"></div><div style="height:2px;background:#ddd"></div></div>
+              <div style="width:58px;height:22px;border:1px dashed rgba(255,255,255,.25);border-radius:6px;display:flex;align-items:center;justify-content:center;color:#8f887d"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+            </div>
+
+            <!-- top-right chips -->
+            <div style="position:absolute;top:18px;right:18px;display:flex;gap:8px">
+              <div style="display:flex;align-items:center;gap:7px;background:rgba(240,136,90,.14);border:1px solid rgba(240,136,90,.4);color:#f4ac89;border-radius:999px;padding:5px 11px;font:600 11px system-ui;backdrop-filter:blur(8px)"><div style="width:6px;height:6px;border-radius:50%;background:#f0885a"></div>199 fields</div>
+              <div style="background:rgba(26,24,21,.8);border:1px solid rgba(255,255,255,.09);color:#cfc8bf;border-radius:999px;padding:5px 11px;font:500 11px system-ui;backdrop-filter:blur(8px)">1 / 2</div>
+            </div>
+
+            <!-- floating command island -->
+            <div style="position:absolute;bottom:22px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:5px;background:rgba(32,29,26,.82);border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:8px 10px;backdrop-filter:blur(16px);box-shadow:0 16px 40px rgba(0,0,0,.55)">
+              <div style="width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#cfc8bf"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+              <div style="width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#f7d1bd;background:color-mix(in srgb,#f0885a 16%,transparent)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 12h5"/><path d="M9 9.5v5"/></svg></div>
+              <div style="width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#cfc8bf"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M15 5.5l3.5 3.5L9 18.5 5 19l.5-4z"/></svg></div>
+              <div style="width:52px;height:52px;border-radius:50%;background:#f0885a;display:flex;align-items:center;justify-content:center;color:#2a0f04;margin:0 4px;box-shadow:0 8px 22px -4px rgba(240,136,90,.8),0 0 0 5px rgba(240,136,90,.14)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+              <div style="width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#cfc8bf"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></div>
+              <div style="width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#cfc8bf"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4M4 14v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 1c — LEFT RAIL / VIOLET ============ -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="1c">
+      <div style="display:flex;align-items:baseline;gap:9px">
+        <a href="#1c" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(169,140,255,.16);color:#bda9ff;border:1px solid rgba(169,140,255,.4);border-radius:6px;text-decoration:none">1c</a>
+        <span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Left rail</b> · icon rail + thumbnails, canvas takes the room · violet</span>
+      </div>
+
+      <div style="width:1170px;border-radius:13px;overflow:hidden;box-shadow:0 40px 90px -25px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.07);background:#201d1a">
+        <div style="height:44px;display:flex;align-items:center;padding:0 16px;background:linear-gradient(#2a2723,#242118);border-bottom:1px solid rgba(0,0,0,.4);position:relative">
+          <div style="display:flex;gap:8px"><div style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></div><div style="width:12px;height:12px;border-radius:50%;background:#febc2e"></div><div style="width:12px;height:12px;border-radius:50%;background:#28c840"></div></div>
+          <div style="position:absolute;left:0;right:0;text-align:center;font:600 13px system-ui;color:#cfc8bf;pointer-events:none">w9-form.pdf</div>
+        </div>
+        <div style="height:706px;display:flex">
+          <!-- icon rail -->
+          <div style="width:62px;background:#1a1815;border-right:1px solid rgba(255,255,255,.06);padding:14px 0;display:flex;flex-direction:column;align-items:center;gap:6px">
+            <div style="width:40px;height:40px;border-radius:12px;background:color-mix(in srgb,#a98cff 18%,#1a1815);border:1px solid rgba(169,140,255,.5);color:#c4b2ff;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+            <div style="width:26px;height:1px;background:rgba(255,255,255,.1);margin:5px 0"></div>
+            <div style="width:40px;height:40px;border-radius:10px;color:#8f887d;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+            <div style="width:40px;height:40px;border-radius:10px;background:color-mix(in srgb,#a98cff 15%,transparent);color:#c4b2ff;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 12h5"/><path d="M9 9.5v5"/></svg></div>
+            <div style="width:40px;height:40px;border-radius:10px;color:#8f887d;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M15 5.5l3.5 3.5L9 18.5 5 19l.5-4z"/></svg></div>
+            <div style="width:40px;height:40px;border-radius:10px;color:#8f887d;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></div>
+            <div style="width:40px;height:40px;border-radius:10px;color:#8f887d;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h5"/><path d="M14.5 4.5l4 4-8.5 8.5-4 .5.5-4z"/></svg></div>
+            <div style="margin-top:auto;width:40px;height:40px;border-radius:10px;color:#c4b2ff;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4M4 14v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg></div>
+          </div>
+          <!-- thumbnail column -->
+          <div style="width:134px;background:#201d1a;border-right:1px solid rgba(255,255,255,.06);padding:15px 13px;display:flex;flex-direction:column;gap:11px;overflow:hidden">
+            <div style="font:600 9px system-ui;letter-spacing:1px;color:#6f6860">PAGES</div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div style="width:108px;height:140px;background:#fff;border-radius:3px;box-shadow:0 0 0 2px #a98cff,0 4px 12px rgba(0,0,0,.5);padding:9px;display:flex;flex-direction:column;gap:3px"><div style="height:7px;background:#333;width:55%"></div><div style="height:3px;background:#ddd;margin-top:3px"></div><div style="height:3px;background:#eee5ff;border:.5px solid #c4b2ff"></div><div style="height:3px;background:#ddd"></div><div style="height:3px;background:#eee5ff;border:.5px solid #c4b2ff"></div><div style="height:3px;background:#ddd"></div><div style="height:3px;background:#fdf0d8;border:.5px solid #e2c078;margin-top:auto"></div></div>
+              <div style="font:600 10px system-ui;color:#e8e2d8;text-align:center">1</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div style="width:108px;height:140px;background:#fff;border-radius:3px;box-shadow:0 4px 12px rgba(0,0,0,.4);padding:9px;display:flex;flex-direction:column;gap:3px"><div style="height:3px;background:#ddd"></div><div style="height:3px;background:#eee5ff;border:.5px solid #c4b2ff"></div><div style="height:3px;background:#ddd"></div><div style="height:3px;background:#ddd;width:70%"></div></div>
+              <div style="font:400 10px system-ui;color:#8f887d;text-align:center">2</div>
+            </div>
+            <div style="width:108px;height:34px;border:1px dashed rgba(255,255,255,.18);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;color:#8f887d;font:500 11px system-ui"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add page</div>
+          </div>
+          <!-- canvas -->
+          <div style="flex:1;background:radial-gradient(120% 120% at 50% 0%,#161311,#0f0d0b);position:relative;display:flex;align-items:center;justify-content:center;padding:30px">
+            <div style="width:462px;height:598px;box-shadow:0 18px 50px rgba(0,0,0,.55);border-radius:3px;overflow:hidden">
+              <dc-import name="FormPage" accent="#a98cff" hint-size="462px,598px" style="width:462px;height:598px"></dc-import>
+            </div>
+            <div style="position:absolute;top:18px;left:18px;display:flex;align-items:center;gap:7px;background:rgba(169,140,255,.14);border:1px solid rgba(169,140,255,.4);color:#c4b2ff;border-radius:999px;padding:5px 11px;font:600 11px system-ui;backdrop-filter:blur(8px)"><div style="width:6px;height:6px;border-radius:50%;background:#a98cff"></div>199 fillable fields detected</div>
+            <div style="position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:2px;background:rgba(26,24,21,.82);border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:4px;font:500 12px system-ui;color:#cfc8bf;backdrop-filter:blur(10px)">
+              <div style="padding:4px 8px;color:#8f887d">‹</div><div style="padding:4px 6px;color:#e8e2d8">1 / 2</div><div style="padding:4px 8px;color:#8f887d">›</div>
+              <div style="width:1px;height:16px;background:rgba(255,255,255,.12);margin:0 4px"></div>
+              <div style="padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.08);color:#e8e2d8">Fit to page</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <p style="margin:30px 0 0;font:400 12px/1.6 system-ui;color:#7f786e">Try next: "build out <a href="#1a" style="color:#8f887d">1a</a>'s field overlay" · "make <a href="#1b" style="color:#8f887d">1b</a>'s island lighter / more/less buttons" · "combine the <a href="#1c" style="color:#8f887d">1c</a> rail with <a href="#1a" style="color:#8f887d">1a</a>'s right panel" · "show these in light mode"</p>
+</section>
+
+<!-- ================= t2 — FIELD OVERLAY ================= -->
+<section style="padding:46px 52px 40px;border-bottom:1px solid rgba(255,255,255,.07)" id="t2">
+  <div style="display:flex;align-items:baseline;gap:11px;margin-bottom:6px">
+    <a href="#t2" style="font:600 10px ui-monospace,Menlo,monospace;padding:3px 8px;background:#37c07a;color:#08130c;border-radius:5px;text-decoration:none">2</a>
+    <span style="font:600 15px/1.2 system-ui,sans-serif;color:#f3efe8">Auto-detected field overlay — normal vs. signature</span>
+  </div>
+  <p style="font:400 12.5px/1.5 system-ui,sans-serif;color:#8f887d;margin:0 0 26px;max-width:660px">Zoomed into the page so the affordances read clearly. Detection is <b style="color:#c9c2b6;font-weight:600">always on</b> — nothing to turn on. Two treatments for how much the highlights assert themselves. A signature field is never a text cursor.</p>
+
+  <div style="display:flex;flex-wrap:wrap;gap:38px;align-items:flex-start">
+
+    <!-- 2a subtle -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="2a">
+      <div style="display:flex;align-items:baseline;gap:9px">
+        <a href="#2a" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">2a</a>
+        <span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Quiet</b> · faint tint, one field focused, hover reveals the rest</span>
+      </div>
+      <div style="width:560px;background:#14120f;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:26px;display:flex;flex-direction:column;gap:20px">
+        <!-- focused text field -->
+        <div style="background:#fff;border-radius:5px;padding:16px 18px 18px;position:relative;box-shadow:0 8px 24px rgba(0,0,0,.4)">
+          <div style="font:600 8px Helvetica;color:#777;letter-spacing:.4px;margin-bottom:5px">LAST NAME</div>
+          <div style="height:30px;border:2px solid #37c07a;background:color-mix(in srgb,#37c07a 10%,#fff);border-radius:4px;display:flex;align-items:center;padding:0 10px;box-shadow:0 0 0 4px rgba(55,192,122,.18)"><span style="font:400 15px Helvetica;color:#232323">Nakamura</span><span style="width:1.5px;height:18px;background:#37c07a;margin-left:1px;animation:none"></span></div>
+          <div style="position:absolute;right:14px;top:14px;font:500 9px system-ui;color:#37c07a;background:rgba(55,192,122,.12);padding:2px 7px;border-radius:5px">auto-fit ✓</div>
+        </div>
+        <div style="font:400 11px/1.4 system-ui;color:#8f887d;padding:0 2px"><b style="color:#c9c2b6;font-weight:600">Normal field.</b> Click → type. Text auto-shrinks to fit; what's on screen is exactly what exports.</div>
+
+        <!-- unfilled detected fields row -->
+        <div style="background:#fff;border-radius:5px;padding:16px 18px;box-shadow:0 8px 24px rgba(0,0,0,.4);display:flex;gap:10px">
+          <div style="flex:1"><div style="font:600 8px Helvetica;color:#777;margin-bottom:5px">CITY</div><div style="height:26px;border:1.4px solid rgba(55,192,122,.6);background:color-mix(in srgb,#37c07a 8%,#fff);border-radius:4px"></div></div>
+          <div style="width:60px"><div style="font:600 8px Helvetica;color:#777;margin-bottom:5px">STATE</div><div style="height:26px;border:1.4px solid rgba(55,192,122,.6);background:color-mix(in srgb,#37c07a 8%,#fff);border-radius:4px"></div></div>
+          <div style="width:84px"><div style="font:600 8px Helvetica;color:#777;margin-bottom:5px">ZIP</div><div style="height:26px;border:1.4px solid rgba(55,192,122,.6);background:color-mix(in srgb,#37c07a 8%,#fff);border-radius:4px"></div></div>
+        </div>
+
+        <!-- signature field -->
+        <div style="background:#fff;border-radius:5px;padding:16px 18px;box-shadow:0 8px 24px rgba(0,0,0,.4);position:relative">
+          <div style="font:600 8px Helvetica;color:#777;letter-spacing:.4px;margin-bottom:5px">SIGN HERE</div>
+          <div style="height:44px;border:2px dashed #e8b45a;background:color-mix(in srgb,#e8b45a 12%,#fff);border-radius:6px;display:flex;align-items:center;gap:9px;padding:0 12px;cursor:pointer">
+            <div style="width:26px;height:26px;border-radius:8px;background:#e8b45a;display:flex;align-items:center;justify-content:center;color:#4a3200"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-3-3L5 17z"/></svg></div>
+            <span style="font:500 13px system-ui;color:#9a6c1e">Click to sign — draw, type, or reuse saved</span>
+          </div>
+          <div style="position:absolute;right:14px;top:14px;font:500 9px system-ui;color:#9a6c1e;background:rgba(232,180,90,.16);padding:2px 7px;border-radius:5px">signature</div>
+        </div>
+        <div style="font:400 11px/1.4 system-ui;color:#8f887d;padding:0 2px"><b style="color:#e8b45a;font-weight:600">Signature field.</b> Amber + dashed + pen, never a text caret. Click launches the sign flow.</div>
+      </div>
+    </div>
+
+    <!-- 2b bold -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="2b">
+      <div style="display:flex;align-items:baseline;gap:9px">
+        <a href="#2b" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">2b</a>
+        <span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Confident</b> · solid outlines, a summary chip, signature is a button</span>
+      </div>
+      <div style="width:560px;background:#14120f;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:26px;display:flex;flex-direction:column;gap:16px">
+        <!-- summary chip -->
+        <div style="display:flex;align-items:center;gap:10px;background:#201d1a;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:11px 14px">
+          <div style="width:8px;height:8px;border-radius:50%;background:#37c07a;box-shadow:0 0 0 4px rgba(55,192,122,.2)"></div>
+          <span style="font:600 13px system-ui;color:#f3efe8">199 fillable fields</span>
+          <span style="font:500 12px system-ui;color:#8f887d">·</span>
+          <span style="font:500 12px system-ui;color:#e8b45a">1 signature</span>
+          <span style="margin-left:auto;font:500 12px system-ui;color:#37c07a;background:rgba(55,192,122,.12);padding:4px 10px;border-radius:7px">Fill all →</span>
+        </div>
+
+        <div style="background:#fff;border-radius:5px;padding:16px 18px;box-shadow:0 8px 24px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:12px">
+          <div><div style="font:600 8px Helvetica;color:#777;margin-bottom:5px">LAST NAME</div><div style="height:30px;border:2px solid #37c07a;border-radius:4px;background:#fff;display:flex;align-items:center;padding:0 10px;position:relative"><span style="font:400 15px Helvetica;color:#232323">Nakamura</span><div style="position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;background:#37c07a;color:#08130c;font:700 9px system-ui;display:flex;align-items:center;justify-content:center">1</div></div></div>
+          <div style="display:flex;gap:10px">
+            <div style="flex:1"><div style="font:600 8px Helvetica;color:#777;margin-bottom:5px">CITY</div><div style="height:28px;border:2px solid rgba(55,192,122,.85);border-radius:4px;position:relative"><div style="position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;background:#37c07a;color:#08130c;font:700 9px system-ui;display:flex;align-items:center;justify-content:center">2</div></div></div>
+            <div style="width:70px"><div style="font:600 8px Helvetica;color:#777;margin-bottom:5px">STATE</div><div style="height:28px;border:2px solid rgba(55,192,122,.85);border-radius:4px;position:relative"><div style="position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;background:#37c07a;color:#08130c;font:700 9px system-ui;display:flex;align-items:center;justify-content:center">3</div></div></div>
+          </div>
+        </div>
+
+        <div style="background:#fff;border-radius:5px;padding:16px 18px;box-shadow:0 8px 24px rgba(0,0,0,.4)">
+          <div style="font:600 8px Helvetica;color:#777;letter-spacing:.4px;margin-bottom:6px">SIGN HERE</div>
+          <button style="width:100%;height:46px;border:none;border-radius:8px;background:#e8b45a;color:#3a2700;font:650 14px system-ui;display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;box-shadow:0 6px 16px -5px rgba(232,180,90,.7)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-3-3L5 17z"/></svg>Sign here
+          </button>
+        </div>
+        <div style="font:400 11px/1.4 system-ui;color:#8f887d;padding:0 2px">Numbered order guides a first-timer straight through. Signature reads as an action button, distinct from every text field.</div>
+      </div>
+    </div>
+
+  </div>
+  <p style="margin:30px 0 0;font:400 12px/1.6 system-ui;color:#7f786e">Try next: "use <a href="#2a" style="color:#8f887d">2a</a>'s quiet style but keep <a href="#2b" style="color:#8f887d">2b</a>'s summary chip" · "show the manual double-click-to-place fallback" · "what a filled + signed page looks like"</p>
+</section>
+
+<!-- ================= t3 — SIGN FLOW ================= -->
+<section style="padding:46px 52px 40px;border-bottom:1px solid rgba(255,255,255,.07)" id="t3">
+  <div style="display:flex;align-items:baseline;gap:11px;margin-bottom:6px">
+    <a href="#t3" style="font:600 10px ui-monospace,Menlo,monospace;padding:3px 8px;background:#37c07a;color:#08130c;border-radius:5px;text-decoration:none">3</a>
+    <span style="font:600 15px/1.2 system-ui,sans-serif;color:#f3efe8">Sign flow — draw / type / upload / reuse</span>
+  </div>
+  <p style="font:400 12.5px/1.5 system-ui,sans-serif;color:#8f887d;margin:0 0 26px;max-width:660px">Triggered by clicking a signature field (or the Sign tool + click to place). Unlimited, free, saved locally for reuse. Two weights: a focused sheet, or a lightweight popover anchored right at the field.</p>
+
+  <div style="display:flex;flex-wrap:wrap;gap:38px;align-items:flex-start">
+
+    <!-- 3a modal sheet -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="3a">
+      <div style="display:flex;align-items:baseline;gap:9px">
+        <a href="#3a" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">3a</a>
+        <span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Focused sheet</b> · full sign surface over a dimmed doc</span>
+      </div>
+      <div style="width:540px;background:radial-gradient(120% 120% at 50% 0%,#161311,#0f0d0b);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:34px;display:flex;align-items:center;justify-content:center">
+        <div style="width:452px;background:#252220;border:1px solid rgba(255,255,255,.09);border-radius:16px;box-shadow:0 30px 70px rgba(0,0,0,.6);overflow:hidden">
+          <div style="padding:20px 22px 0;display:flex;align-items:center;justify-content:space-between"><span style="font:650 16px system-ui;color:#f3efe8">Add your signature</span><span style="width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.07);color:#a49c90;display:flex;align-items:center;justify-content:center;font:400 15px system-ui">×</span></div>
+          <!-- tabs -->
+          <div style="display:flex;gap:4px;padding:16px 22px 0">
+            <div style="flex:1;text-align:center;padding:8px;border-radius:9px;background:#37c07a;color:#08130c;font:600 12.5px system-ui">Draw</div>
+            <div style="flex:1;text-align:center;padding:8px;border-radius:9px;color:#a49c90;font:500 12.5px system-ui">Type</div>
+            <div style="flex:1;text-align:center;padding:8px;border-radius:9px;color:#a49c90;font:500 12.5px system-ui">Upload</div>
+            <div style="flex:1;text-align:center;padding:8px;border-radius:9px;color:#a49c90;font:500 12.5px system-ui">Saved</div>
+          </div>
+          <!-- draw pad -->
+          <div style="margin:16px 22px;height:150px;background:#fff;border-radius:11px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center">
+            <svg width="240" height="80" viewBox="0 0 240 80" fill="none" stroke="#1a2b6b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 55c14-40 20 6 28-4s6-30 14-24 4 44 16 40 18-46 30-40 2 40 16 36 20-30 34-26 10 30 24 24 20-30 36-24"/></svg>
+            <div style="position:absolute;left:20px;right:20px;bottom:22px;border-bottom:1.5px dashed #c9c9c9"></div>
+            <div style="position:absolute;left:20px;bottom:8px;font:400 10px system-ui;color:#aaa">Draw with trackpad or mouse</div>
+          </div>
+          <!-- reuse toggle -->
+          <div style="margin:0 22px;display:flex;align-items:center;gap:9px">
+            <div style="width:34px;height:20px;border-radius:999px;background:#37c07a;position:relative"><div style="position:absolute;right:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff"></div></div>
+            <span style="font:500 12.5px system-ui;color:#d8d2c8">Save this signature for reuse</span>
+          </div>
+          <!-- footer -->
+          <div style="display:flex;gap:10px;padding:18px 22px 22px">
+            <div style="padding:11px 16px;border-radius:10px;color:#a49c90;font:500 13px system-ui">Clear</div>
+            <div style="flex:1"></div>
+            <div style="padding:11px 18px;border-radius:10px;background:rgba(255,255,255,.08);color:#d8d2c8;font:500 13px system-ui">Cancel</div>
+            <div style="padding:11px 20px;border-radius:10px;background:#37c07a;color:#08130c;font:650 13px system-ui">Place signature</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3b inline popover -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="3b">
+      <div style="display:flex;align-items:baseline;gap:9px">
+        <a href="#3b" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">3b</a>
+        <span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Inline popover</b> · anchored at the field · reuse in one tap</span>
+      </div>
+      <div style="width:540px;background:radial-gradient(120% 120% at 50% 0%,#161311,#0f0d0b);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:34px;position:relative;display:flex;flex-direction:column;align-items:center;gap:0">
+        <!-- the signature field on page -->
+        <div style="width:360px;background:#fff;border-radius:6px;padding:14px 16px;box-shadow:0 8px 24px rgba(0,0,0,.4)">
+          <div style="font:600 8px Helvetica;color:#777;margin-bottom:5px">SIGN HERE</div>
+          <div style="height:40px;border:2px dashed #e8b45a;background:color-mix(in srgb,#e8b45a 12%,#fff);border-radius:6px"></div>
+        </div>
+        <!-- connector -->
+        <div style="width:2px;height:16px;background:rgba(232,180,90,.5)"></div>
+        <!-- popover -->
+        <div style="width:320px;background:#252220;border:1px solid rgba(255,255,255,.1);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.6);padding:16px">
+          <div style="font:600 10px system-ui;letter-spacing:.8px;color:#6f6860;margin-bottom:9px">SAVED SIGNATURES</div>
+          <div style="display:flex;gap:9px;margin-bottom:14px">
+            <div style="flex:1;height:52px;background:#fff;border-radius:9px;border:2px solid #37c07a;display:flex;align-items:center;justify-content:center"><svg width="90" height="34" viewBox="0 0 240 80" fill="none" stroke="#1a2b6b" stroke-width="4" stroke-linecap="round"><path d="M12 55c14-40 20 6 28-4s6-30 14-24 4 44 16 40 18-46 30-40 2 40 16 36 20-30 34-26"/></svg></div>
+            <div style="width:80px;height:52px;background:#fff;border-radius:9px;display:flex;align-items:center;justify-content:center"><span style="font:italic 400 18px 'Snell Roundhand','Brush Script MT',cursive;color:#1a2b6b">A.N.</span></div>
+          </div>
+          <div style="display:flex;gap:7px">
+            <div style="flex:1;text-align:center;padding:10px;border-radius:10px;background:rgba(255,255,255,.07);color:#d8d2c8;font:600 12px system-ui;display:flex;align-items:center;justify-content:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18.5 9.5a2 2 0 0 0-3-3L5 17z"/></svg>Draw new</div>
+            <div style="flex:1;text-align:center;padding:10px;border-radius:10px;background:rgba(255,255,255,.07);color:#d8d2c8;font:600 12px system-ui">Type</div>
+            <div style="width:44px;text-align:center;padding:10px;border-radius:10px;background:rgba(255,255,255,.07);color:#d8d2c8;font:600 12px system-ui">⤒</div>
+          </div>
+        </div>
+        <p style="margin:16px 0 0;font:400 11px/1.4 system-ui;color:#8f887d;text-align:center;max-width:340px">A returning user signs in one tap — no redraw. "Draw new / Type / Upload" expand into the same surface as <a href="#3a" style="color:#8f887d">3a</a>.</p>
+      </div>
+    </div>
+
+  </div>
+  <p style="margin:30px 0 0;font:400 12px/1.6 system-ui;color:#7f786e">Try next: "show the Type tab with cursive font choices" · "add the lightweight audit record (time · name · device)" · "combine <a href="#3a" style="color:#8f887d">3a</a> sheet with <a href="#3b" style="color:#8f887d">3b</a>'s saved row on top"</p>
+</section>
+
+<!-- ================= t4 — THE + ACTION ================= -->
+<section style="padding:46px 52px 44px" id="t4">
+  <div style="display:flex;align-items:baseline;gap:11px;margin-bottom:6px">
+    <a href="#t4" style="font:600 10px ui-monospace,Menlo,monospace;padding:3px 8px;background:#37c07a;color:#08130c;border-radius:5px;text-decoration:none">4</a>
+    <span style="font:600 15px/1.2 system-ui,sans-serif;color:#f3efe8">The "+" quick action — import / merge / split / add page</span>
+  </div>
+  <p style="font:400 12.5px/1.5 system-ui,sans-serif;color:#8f887d;margin:0 0 26px;max-width:660px">The persistent "+" from the document view (right-panel button, island center, or rail top). Never a File-menu trip. Two ideas: a fast popover for the common case, or a unified drop surface where merge & split feel like one fluid action, not a wizard.</p>
+
+  <div style="display:flex;flex-wrap:wrap;gap:38px;align-items:flex-start">
+
+    <!-- 4a popover -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="4a">
+      <div style="display:flex;align-items:baseline;gap:9px">
+        <a href="#4a" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">4a</a>
+        <span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Popover menu</b> · one click covers the common cases</span>
+      </div>
+      <div style="width:420px;background:#14120f;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:34px;display:flex;flex-direction:column;align-items:center;gap:0">
+        <button style="height:40px;padding:0 18px;border-radius:10px;border:1px solid rgba(55,192,122,.55);background:color-mix(in srgb,#37c07a 15%,#14120f);color:#7fe0aa;font:600 13.5px system-ui;display:flex;align-items:center;justify-content:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add or merge files</button>
+        <div style="width:2px;height:14px;background:rgba(55,192,122,.4)"></div>
+        <div style="width:320px;background:#252220;border:1px solid rgba(255,255,255,.1);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.6);padding:8px">
+          <div style="display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:9px;background:rgba(255,255,255,.04)">
+            <div style="width:32px;height:32px;border-radius:9px;background:rgba(55,192,122,.16);color:#37c07a;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+            <div><div style="font:600 13px system-ui;color:#f3efe8">Open a PDF…</div><div style="font:400 10.5px system-ui;color:#8f887d">Replace what's open</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:9px">
+            <div style="width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,.06);color:#c9c2b6;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4v6a3 3 0 0 0 3 3h9M8 20v-6"/><path d="M17 10l3 3-3 3"/></svg></div>
+            <div><div style="font:600 13px system-ui;color:#f3efe8">Merge another PDF…</div><div style="font:400 10.5px system-ui;color:#8f887d">Append to the end</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:9px">
+            <div style="width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,.06);color:#c9c2b6;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M12 8v6M9 11h6"/></svg></div>
+            <div><div style="font:600 13px system-ui;color:#f3efe8">Insert blank page</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:9px">
+            <div style="width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,.06);color:#c9c2b6;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
+            <div><div style="font:600 13px system-ui;color:#f3efe8">Image as a page…</div></div>
+          </div>
+          <div style="height:1px;background:rgba(255,255,255,.08);margin:6px 12px"></div>
+          <div style="display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:9px">
+            <div style="width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,.06);color:#c9c2b6;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l-2 4 2 4M19 8l2 4-2 4"/></svg></div>
+            <div><div style="font:600 13px system-ui;color:#f3efe8">Split or extract pages…</div><div style="font:400 10.5px system-ui;color:#8f887d">Pick a range → new file</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4b unified sheet -->
+    <div style="display:flex;flex-direction:column;gap:11px" id="4b">
+      <div style="display:flex;align-items:baseline;gap:9px">
+        <a href="#4b" style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(55,192,122,.16);color:#5fd699;border:1px solid rgba(55,192,122,.4);border-radius:6px;text-decoration:none">4b</a>
+        <span style="font:400 12px/1.3 system-ui;color:#a49c90"><b style="color:#e8e2d8;font-weight:600">Unified drop surface</b> · merge = drag files into order</span>
+      </div>
+      <div style="width:500px;background:#252220;border:1px solid rgba(255,255,255,.09);border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,.5);overflow:hidden">
+        <div style="padding:18px 22px 0;font:650 16px system-ui;color:#f3efe8">Add to this document</div>
+        <!-- dropzone -->
+        <div style="margin:16px 22px;border:2px dashed rgba(55,192,122,.5);background:rgba(55,192,122,.05);border-radius:13px;padding:24px;display:flex;flex-direction:column;align-items:center;gap:8px">
+          <div style="width:44px;height:44px;border-radius:13px;background:rgba(55,192,122,.16);color:#37c07a;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></div>
+          <div style="font:600 13.5px system-ui;color:#e8e2d8">Drop PDFs or images here</div>
+          <div style="font:400 11.5px system-ui;color:#8f887d">or <span style="color:#37c07a">browse…</span> — everything stays on your Mac</div>
+        </div>
+        <!-- ordered file chips -->
+        <div style="padding:0 22px;display:flex;flex-direction:column;gap:8px">
+          <div style="font:600 10px system-ui;letter-spacing:.8px;color:#6f6860">DOCUMENT ORDER — DRAG TO REORDER</div>
+          <div style="display:flex;align-items:center;gap:11px;background:#2f2b28;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:9px 12px"><span style="color:#6f6860">⠿</span><div style="width:24px;height:30px;background:#fff;border-radius:3px"></div><div style="flex:1"><div style="font:600 12.5px system-ui;color:#f3efe8">f1040-2025.pdf</div><div style="font:400 10px system-ui;color:#8f887d">2 pages · current</div></div></div>
+          <div style="display:flex;align-items:center;gap:11px;background:#2f2b28;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:9px 12px"><span style="color:#6f6860">⠿</span><div style="width:24px;height:30px;background:#fff;border-radius:3px"></div><div style="flex:1"><div style="font:600 12.5px system-ui;color:#f3efe8">w2-statement.pdf</div><div style="font:400 10px system-ui;color:#8f887d">1 page</div></div><span style="color:#6f6860;font:400 15px system-ui">×</span></div>
+        </div>
+        <!-- footer with split affordance -->
+        <div style="display:flex;align-items:center;gap:10px;padding:18px 22px 20px;margin-top:12px">
+          <span style="font:500 12px system-ui;color:#8f887d;display:flex;align-items:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l-2 4 2 4M19 8l2 4-2 4"/></svg>Split instead</span>
+          <div style="flex:1"></div>
+          <div style="padding:11px 18px;border-radius:10px;background:rgba(255,255,255,.08);color:#d8d2c8;font:500 13px system-ui">Cancel</div>
+          <div style="padding:11px 20px;border-radius:10px;background:#37c07a;color:#08130c;font:650 13px system-ui">Merge 2 files</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p style="margin:30px 0 0;font:400 12px/1.6 system-ui;color:#7f786e">Try next: "show <a href="#4b" style="color:#8f887d">4b</a> in split mode with a page-range picker" · "put <a href="#4a" style="color:#8f887d">4a</a> under the <a href="#1b" style="color:#8f887d">1b</a> island's + button" · "add recent files to the popover"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { step: 0, stamped: [false, false, false] };
+  fieldDefs() {
+    return [
+      { type: 'initials', top: 78, left: 300, w: 76, h: 30 },
+      { type: 'signature', top: 232, left: 44, w: 236, h: 48 },
+      { type: 'initials', top: 372, left: 300, w: 76, h: 30 },
+    ];
+  }
+  apply = () => {
+    this.setState(s => {
+      const stamped = s.stamped.slice();
+      stamped[s.step] = true;
+      return { stamped, step: Math.min(s.step + 1, 3) };
+    });
+  };
+  reset = () => this.setState({ step: 0, stamped: [false, false, false] });
+  renderVals() {
+    const F = this.fieldDefs();
+    const step = this.state.step;
+    const done = step >= F.length;
+    const popH = 176;
+    const cur = done ? F[F.length - 1] : F[step];
+    let popTop = cur.top + cur.h / 2 - popH / 2;
+    popTop = Math.max(6, Math.min(popTop, 452 - popH - 6));
+    const fields = F.map((f, i) => {
+      const active = !done && i === step;
+      const stamped = this.state.stamped[i];
+      const base = `width:100%;height:100%;border-radius:6px;display:flex;align-items:center;justify-content:center;`;
+      const boxStyle = stamped
+        ? base
+        : base + `border:2px dashed #e8b45a;background:color-mix(in srgb,#e8b45a 12%,#fff);` +
+          (active ? `box-shadow:0 0 0 5px rgba(232,180,90,.4);transition:box-shadow .3s` : `opacity:.55;`);
+      return {
+        wrapStyle: `position:absolute;top:${f.top}px;left:${f.left}px;width:${f.w}px;height:${f.h}px`,
+        boxStyle, stamped,
+        isSig: f.type === 'signature',
+        notSig: f.type !== 'signature',
+      };
+    });
+    return {
+      fields, done, notDone: !done,
+      popStyle: `position:absolute;left:472px;top:${popTop}px;width:256px;transition:top .6s cubic-bezier(.34,1.4,.5,1)`,
+      stepLabel: done ? 'All fields signed' : (cur.type === 'signature' ? 'Signature required' : 'Initials required'),
+      progress: `${this.state.stamped.filter(Boolean).length} / ${F.length}`,
+      curIsSig: !done && cur.type === 'signature',
+      curIsInitials: !done && cur.type !== 'signature',
+      apply: this.apply,
+      reset: this.reset,
+    };
+  }
+}
+</script>
+</body>
+</html>

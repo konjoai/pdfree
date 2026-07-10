@@ -14,7 +14,14 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 pdfree-core = { path = "../pdfree-core" }
 wasm-bindgen = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
 
-# NOTE: a real wasm32 build additionally needs `pdfium-render`'s `wasm` feature
-# and a JS-side PDFium module (see docs/pdfium-bundling.md). On native targets
-# this crate compiles as a plain wrapper, which is what Phase 0 verifies.
+# NOTE: a real wasm32 build additionally needs a JS-side PDFium WASM module —
+# `pdfium-render` auto-switches to its WASM binding backend when compiling
+# for `target_arch = "wasm32"` (no separate Cargo feature to enable), but at
+# *runtime* JavaScript must call its exported `initialize_pdfium_render()`
+# before any function in this crate that touches a document. See
+# `docs/pdfium-bundling.md` for the web app's exact setup. On native targets
+# this crate still compiles (used by `cargo build --workspace` and CI), but
+# nothing calls it there — the web app is the only real consumer.

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDFree</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!--
+      PDFium's WASM build ships as classic Emscripten output (a global
+      `PDFiumModule` factory function), not an ES module — it has to load as
+      a plain script tag, not an import. This file is NOT bundled with the
+      repo (same as vendor/pdfium/ for native): see
+      apps/web/public/pdfium/README.md for where to get it.
+    -->
+    <script src="/pdfium/pdfium.js"></script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

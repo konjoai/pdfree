@@ -81,6 +81,17 @@ jobs:
         with:
           shared-key: "konjo-gates-${{ github.repository }}"
 
+      # The workspace includes the Tauri desktop crate (pdfree-desktop), whose
+      # glib/gobject/gdk -sys build scripts need these GTK dev libraries via
+      # pkg-config — otherwise the repo:clippy and repo:cargo-mutants gates
+      # fail to build the workspace at all.
+      - name: Install Linux GUI deps (pdfree-desktop / Tauri)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
+            libayatana-appindicator3-dev patchelf
+
       # cargo-deny and cargo-mutants are third-party subcommands; nothing installs
       # them by default. rustfmt/clippy come from the toolchain step above.
       - name: Install repo-native gate tools

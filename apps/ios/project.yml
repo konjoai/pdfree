@@ -1,0 +1,38 @@
+name: PDFree
+options:
+  bundleIdPrefix: ai.konjo.pdfree
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  PDFree:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Resources
+        optional: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.konjo.pdfree.ios
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_CFBundleDisplayName: PDFree
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Bridge/pdfree_ffiFFI.h
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+      configs:
+        Debug:
+          # Dev-only, simulator-first (per CLAUDE.md's "Apple Silicon first"
+          # policy applied to iOS: arm64 simulator is what Apple Silicon
+          # Macs run natively, no Rosetta). The XCFramework also has a real
+          # ios-arm64 (device) slice — see scripts/build-ios.sh — but device
+          # runs need a real signing team, which this dev scaffold doesn't
+          # configure.
+          SDKROOT: iphonesimulator
+    dependencies:
+      - framework: Frameworks/PdfreeFFI.xcframework
+        embed: true

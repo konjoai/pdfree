@@ -17,10 +17,10 @@ struct SplitSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Split into Ranges").font(.headline)
+            Text("Split into Ranges").font(.headline).foregroundStyle(Theme.Color.textHigh)
             Text("0-based, inclusive page indices. This document has \(pageCount) page(s).")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.Color.textMid)
             ForEach($ranges) { $entry in
                 HStack {
                     Stepper("Start: \(entry.start)", value: $entry.start, in: 0...maxIndex)
@@ -45,6 +45,7 @@ struct SplitSheet: View {
         }
         .padding()
         .frame(width: 420)
+        .background(Theme.Color.popoverBg)
     }
 
     private var maxIndex: Int { max(0, Int(pageCount) - 1) }

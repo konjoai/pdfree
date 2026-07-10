@@ -13,7 +13,7 @@ struct TextPromptSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title).font(.headline)
+            Text(title).font(.headline).foregroundStyle(Theme.Color.textHigh)
             TextField(placeholder, text: $text, axis: .vertical)
                 .lineLimit(3...6)
                 .textFieldStyle(.roundedBorder)
@@ -27,6 +27,7 @@ struct TextPromptSheet: View {
         }
         .padding()
         .frame(width: 360)
+        .background(Theme.Color.popoverBg)
         .onAppear { text = initialText }
     }
 }

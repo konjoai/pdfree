@@ -188,6 +188,113 @@ fn boxes_on_page_finds_every_cell_of_a_ruled_grid() {
     }
 }
 
+/// A one-page PDF with a single bare horizontal line (a "fill on this line"
+/// underline) and, optionally, an enclosing stroked rectangle around it.
+fn pdf_with_underline(x0: f32, x1: f32, y: f32, enclosing: Option<PdfRect>) -> Vec<u8> {
+    let pdfium = pdfree_core::pdfium::bind().expect("bind pdfium");
+    let mut document = pdfium.create_new_pdf().expect("create pdf");
+    let mut page = document
+        .pages_mut()
+        .create_page_at_start(PdfPagePaperSize::Custom(
+            PdfPoints::new(612.0),
+            PdfPoints::new(792.0),
+        ))
+        .expect("create page");
+    if let Some(rect) = enclosing {
+        page.objects_mut()
+            .create_path_object_rect(rect, Some(PdfColor::BLACK), Some(PdfPoints::new(1.0)), None)
+            .expect("enclosing rect");
+    }
+    page.objects_mut()
+        .create_path_object_line(
+            PdfPoints::new(x0),
+            PdfPoints::new(y),
+            PdfPoints::new(x1),
+            PdfPoints::new(y),
+            PdfColor::BLACK,
+            PdfPoints::new(1.0),
+        )
+        .expect("underline");
+    document.save_to_bytes().expect("save")
+}
+
+#[test]
+fn detects_a_fill_in_underline_with_no_box_around_it() {
+    skip_without_pdfium!();
+
+    // A lone horizontal line at y=300 from x=100 to x=400 — the shape of
+    // `Name: ______`, which the cell/rect tiers can't see at all.
+    let bytes = pdf_with_underline(100.0, 400.0, 300.0, None);
+    let found = boxes_on_page(&bytes, 0).expect("boxes_on_page");
+
+    assert_eq!(
+        found.len(),
+        1,
+        "expected exactly one underline field: {found:?}"
+    );
+    let field = found[0];
+    assert!((field.x - 100.0).abs() < 2.0, "x = {}", field.x);
+    assert!((field.width - 300.0).abs() < 2.0, "width = {}", field.width);
+    // The affordance sits *on* the line (its bottom edge at the line's y) and
+    // is about one text line tall.
+    assert!((field.y - 300.0).abs() < 2.0, "y = {}", field.y);
+    assert!(
+        field.height > 6.0 && field.height <= 17.0,
+        "height = {}",
+        field.height
+    );
+}
+
+#[test]
+fn prefers_the_inner_field_over_an_enclosing_region() {
+    skip_without_pdfium!();
+
+    // A big bordered region (100..500 x 250..450) with a fill line inside it
+    // — the shell should highlight the line, not the whole region box.
+    let region = PdfRect::new(
+        PdfPoints::new(250.0),
+        PdfPoints::new(100.0),
+        PdfPoints::new(450.0),
+        PdfPoints::new(500.0),
+    );
+    let bytes = pdf_with_underline(140.0, 460.0, 320.0, Some(region));
+    let found = boxes_on_page(&bytes, 0).expect("boxes_on_page");
+
+    // Exactly the inner fill line survives; the 400x200 region is dropped.
+    assert_eq!(found.len(), 1, "expected only the inner field: {found:?}");
+    let field = found[0];
+    assert!((field.x - 140.0).abs() < 2.0, "x = {}", field.x);
+    assert!((field.width - 320.0).abs() < 2.0, "width = {}", field.width);
+    assert!(
+        field.height <= 17.0,
+        "should be a slim fill field, got {}",
+        field.height
+    );
+}
+
+#[test]
+fn irs_1040_still_scans_without_regression() {
+    skip_without_pdfium!();
+
+    // Smoke test against a real, multi-field government form: detection must
+    // return a healthy set of on-page fields and never a box larger than the
+    // page. (Not asserting an exact count — real forms are ragged.)
+    let bytes = include_bytes!("fixtures/irs_f1040.pdf");
+    let found = boxes_on_page(bytes, 0).expect("boxes_on_page");
+    assert!(
+        found.len() >= 5,
+        "far too few fields detected: {}",
+        found.len()
+    );
+    for b in &found {
+        assert!(b.width > 0.0 && b.height > 0.0, "degenerate box: {b:?}");
+        assert!(
+            b.width < 620.0 && b.height < 800.0,
+            "box larger than page: {b:?}"
+        );
+    }
+}
+
 #[test]
 fn rejects_an_out_of_range_page() {
     skip_without_pdfium!();

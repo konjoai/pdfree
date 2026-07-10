@@ -36,6 +36,8 @@ pub enum PdfFreeError {
     Render(String),
     #[error("not implemented: {0}")]
     NotImplemented(String),
+    #[error("AI provider error: {0}")]
+    AiProvider(String),
 }
 
 impl From<pdfree_core::PdfError> for PdfFreeError {
@@ -47,6 +49,17 @@ impl From<pdfree_core::PdfError> for PdfFreeError {
                 PdfFreeError::Render(err.to_string())
             }
             other => PdfFreeError::InvalidDocument(other.to_string()),
+        }
+    }
+}
+
+impl From<pdfree_ai::AiError> for PdfFreeError {
+    fn from(err: pdfree_ai::AiError) -> Self {
+        use pdfree_ai::AiError as E;
+        match err {
+            E::Core(core_err) => core_err.into(),
+            E::Provider(msg) => PdfFreeError::AiProvider(msg),
+            E::NotImplemented(what) => PdfFreeError::NotImplemented(what.to_string()),
         }
     }
 }
@@ -173,17 +186,38 @@ impl From<forms::FieldKind> for FieldKind {
     }
 }
 
+/// Whether a field routes to the sign flow instead of a plain text input,
+/// and if so which weight of it. Mirrors `pdfree_core::forms::SignatureFieldKind`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum SignatureFieldKind {
+    None,
+    Signature,
+    Initials,
+}
+
+impl From<forms::SignatureFieldKind> for SignatureFieldKind {
+    fn from(kind: forms::SignatureFieldKind) -> Self {
+        match kind {
+            forms::SignatureFieldKind::None => SignatureFieldKind::None,
+            forms::SignatureFieldKind::Signature => SignatureFieldKind::Signature,
+            forms::SignatureFieldKind::Initials => SignatureFieldKind::Initials,
+        }
+    }
+}
+
 /// A form field discovered in a document.
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct FormField {
     pub name: String,
     pub kind: FieldKind,
     pub value: Option<String>,
+    /// 0-based page index this field's widget is on.
     pub page: u16,
     pub x: f32,
     pub y: f32,
     pub width: f32,
     pub height: f32,
+    pub signature_kind: SignatureFieldKind,
 }
 
 impl From<forms::FormField> for FormField {
@@ -197,6 +231,7 @@ impl From<forms::FormField> for FormField {
             y: f.y,
             width: f.width,
             height: f.height,
+            signature_kind: f.signature_kind.into(),
         }
     }
 }
@@ -313,6 +348,44 @@ pub fn place_signature(
         &pdf_bytes,
         &image_png,
         at.into(),
+    )?)
+}
+
+/// A lightweight, local-only audit record captured at sign time — signer
+/// name, timestamp, and (where available) device description. Not the
+/// deferred certified/legal-grade chain of custody — see
+/// `pdfree_core::signatures::SignatureAudit`.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct SignatureAudit {
+    pub signer_name: String,
+    pub signed_at: String,
+    pub device_info: Option<String>,
+}
+
+impl From<SignatureAudit> for signatures::SignatureAudit {
+    fn from(a: SignatureAudit) -> Self {
+        Self {
+            signer_name: a.signer_name,
+            signed_at: a.signed_at,
+            device_info: a.device_info,
+        }
+    }
+}
+
+/// Stamp a signature image (PNG bytes) onto a page, plus a small caption
+/// beneath it recording who signed and when.
+#[uniffi::export]
+pub fn place_signature_with_audit(
+    pdf_bytes: Vec<u8>,
+    image_png: Vec<u8>,
+    at: SignaturePlacement,
+    audit: SignatureAudit,
+) -> Result<Vec<u8>, PdfFreeError> {
+    Ok(signatures::place_signature_with_audit(
+        &pdf_bytes,
+        &image_png,
+        at.into(),
+        &audit.into(),
     )?)
 }
 
@@ -660,5 +733,349 @@ pub fn boxes_on_page(pdf_bytes: Vec<u8>, page: u16) -> Result<Vec<DetectedBox>, 
     Ok(boxes::boxes_on_page(&pdf_bytes, page)?
         .into_iter()
         .map(Into::into)
+        .collect())
+}
+
+// ---------------------------------------------------------------------------
+// AI (Phase 5): summarize, RAG Q&A, OCR, smart form fill.
+//
+// Every function here takes an explicit `AiProviderConfig` rather than a
+// stored/default provider — CLAUDE.md's "no silent uploads" rule means the
+// shell must always know, and choose, whether a given call runs on-device
+// (Ollama) or leaves the machine (Anthropic). There is no default provider
+// baked in here for that reason.
+// ---------------------------------------------------------------------------
+
+/// Which AI backend to run a call against, and its connection details.
+/// `Ollama` runs fully on-device; `Anthropic` uploads the prompt (and
+/// whatever document text/context it contains) to Anthropic's API.
+#[derive(Debug, Clone, uniffi::Enum)]
+pub enum AiProviderConfig {
+    /// Local inference via an Ollama instance. `base_url` defaults to
+    /// `http://localhost:11434` when not given.
+    Ollama {
+        model: String,
+        base_url: Option<String>,
+    },
+    /// Cloud inference via the Anthropic API. `model` defaults to
+    /// `claude-opus-4-8` when not given. Constructing this variant is
+    /// itself the user's explicit cloud opt-in — the shell must have
+    /// obtained the API key from the user, never a bundled default.
+    Anthropic {
+        api_key: String,
+        model: Option<String>,
+    },
+}
+
+fn build_ai_provider(config: AiProviderConfig) -> Box<dyn pdfree_ai::provider::Provider> {
+    match config {
+        AiProviderConfig::Ollama { model, base_url } => match base_url {
+            Some(base_url) => Box::new(pdfree_ai::provider::OllamaProvider::with_base_url(
+                model, base_url,
+            )),
+            None => Box::new(pdfree_ai::provider::OllamaProvider::new(model)),
+        },
+        AiProviderConfig::Anthropic { api_key, model } => match model {
+            Some(model) => Box::new(pdfree_ai::provider::AnthropicProvider::with_model(
+                api_key, model,
+            )),
+            None => Box::new(pdfree_ai::provider::AnthropicProvider::new(api_key)),
+        },
+    }
+}
+
+/// Summarize a PDF document.
+#[uniffi::export]
+pub fn ai_summarize(
+    pdf_bytes: Vec<u8>,
+    provider: AiProviderConfig,
+) -> Result<String, PdfFreeError> {
+    let provider = build_ai_provider(provider);
+    Ok(pdfree_ai::summarize::summarize(
+        &pdf_bytes,
+        provider.as_ref(),
+    )?)
+}
+
+/// Answer a question about a PDF document via retrieval-augmented generation.
+#[uniffi::export]
+pub fn ai_rag_answer(
+    pdf_bytes: Vec<u8>,
+    question: String,
+    provider: AiProviderConfig,
+) -> Result<String, PdfFreeError> {
+    let provider = build_ai_provider(provider);
+    Ok(pdfree_ai::rag::answer(
+        &pdf_bytes,
+        &question,
+        provider.as_ref(),
+    )?)
+}
+
+/// Extract text from a scanned page image (PNG bytes) via OCR.
+#[uniffi::export]
+pub fn ai_ocr_recognize(page_png: Vec<u8>) -> Result<String, PdfFreeError> {
+    Ok(pdfree_ai::ocr::recognize(&page_png)?)
+}
+
+/// One suggested field fill from [`ai_suggest_form_fills`], ready to pass
+/// straight into [`form_fill`] after a user confirms it.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct SuggestedFormFill {
+    pub field_name: String,
+    pub value: String,
+}
+
+/// Ask the model to map a user's profile (arbitrary key/value pairs — name,
+/// email, address, etc.) onto a document's detected `AcroForm` fields.
+/// Returns only the fields it found a confident match for; the caller
+/// should present these as a reviewable preview, not auto-apply them.
+#[uniffi::export]
+pub fn ai_suggest_form_fills(
+    pdf_bytes: Vec<u8>,
+    profile: std::collections::HashMap<String, String>,
+    provider: AiProviderConfig,
+) -> Result<Vec<SuggestedFormFill>, PdfFreeError> {
+    let fields = forms::fields(&pdf_bytes)?;
+    let provider = build_ai_provider(provider);
+    let suggestions = pdfree_ai::formfill::suggest_fills(&fields, &profile, provider.as_ref())?;
+    Ok(suggestions
+        .into_iter()
+        .map(|s| SuggestedFormFill {
+            field_name: s.field_name,
+            value: s.value,
+        })
+        .collect())
+}
+
+// ---------------------------------------------------------------------------
+// AI (Phase 6): PII redaction, table extraction, document classification.
+// ---------------------------------------------------------------------------
+
+/// The kind of PII a [`PiiSpan`] matched. Mirrors `pdfree_ai::redact::PiiKind`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum PiiKind {
+    Ssn,
+    Email,
+    Phone,
+    CreditCard,
+}
+
+impl From<pdfree_ai::redact::PiiKind> for PiiKind {
+    fn from(kind: pdfree_ai::redact::PiiKind) -> Self {
+        match kind {
+            pdfree_ai::redact::PiiKind::Ssn => PiiKind::Ssn,
+            pdfree_ai::redact::PiiKind::Email => PiiKind::Email,
+            pdfree_ai::redact::PiiKind::Phone => PiiKind::Phone,
+            pdfree_ai::redact::PiiKind::CreditCard => PiiKind::CreditCard,
+        }
+    }
+}
+
+impl From<PiiSpan> for pdfree_ai::redact::PiiSpan {
+    fn from(s: PiiSpan) -> Self {
+        let kind = match s.kind {
+            PiiKind::Ssn => pdfree_ai::redact::PiiKind::Ssn,
+            PiiKind::Email => pdfree_ai::redact::PiiKind::Email,
+            PiiKind::Phone => pdfree_ai::redact::PiiKind::Phone,
+            PiiKind::CreditCard => pdfree_ai::redact::PiiKind::CreditCard,
+        };
+        Self {
+            page: s.page,
+            kind,
+            text: s.text,
+            x: s.x,
+            y: s.y,
+            width: s.width,
+            height: s.height,
+        }
+    }
+}
+
+/// A detected span of personally-identifiable information. Mirrors
+/// `pdfree_ai::redact::PiiSpan`.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct PiiSpan {
+    pub page: u16,
+    pub kind: PiiKind,
+    pub text: String,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+impl From<pdfree_ai::redact::PiiSpan> for PiiSpan {
+    fn from(s: pdfree_ai::redact::PiiSpan) -> Self {
+        Self {
+            page: s.page,
+            kind: s.kind.into(),
+            text: s.text,
+            x: s.x,
+            y: s.y,
+            width: s.width,
+            height: s.height,
+        }
+    }
+}
+
+/// Detect PII (SSNs, emails, phone numbers, credit card numbers) across
+/// every page of a document via pattern matching — fully local, no AI
+/// provider involved.
+#[uniffi::export]
+pub fn ai_detect_pii(pdf_bytes: Vec<u8>) -> Result<Vec<PiiSpan>, PdfFreeError> {
+    Ok(pdfree_ai::redact::detect_pii(&pdf_bytes)?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+/// Redact the given PII spans (typically a user-reviewed subset of
+/// `ai_detect_pii`'s output), returning the updated document bytes with
+/// each span's text overwritten in place.
+#[uniffi::export]
+pub fn ai_redact(pdf_bytes: Vec<u8>, spans: Vec<PiiSpan>) -> Result<Vec<u8>, PdfFreeError> {
+    let spans: Vec<pdfree_ai::redact::PiiSpan> = spans.into_iter().map(Into::into).collect();
+    Ok(pdfree_ai::redact::redact(&pdf_bytes, &spans)?)
+}
+
+/// A single row of a detected table — see [`ai_extract_tables`].
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct TableRow {
+    pub cells: Vec<String>,
+}
+
+/// A table detected on some page of the document — see [`ai_extract_tables`].
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct Table {
+    pub rows: Vec<TableRow>,
+}
+
+/// Extract every ruled-line table on every page of a document — fully
+/// local, geometry-driven (no AI provider involved).
+#[uniffi::export]
+pub fn ai_extract_tables(pdf_bytes: Vec<u8>) -> Result<Vec<Table>, PdfFreeError> {
+    Ok(pdfree_ai::extract::extract_tables(&pdf_bytes)?
+        .into_iter()
+        .map(|rows| Table {
+            rows: rows.into_iter().map(|cells| TableRow { cells }).collect(),
+        })
+        .collect())
+}
+
+/// Classify a document into a fixed label set (contract, invoice, tax_form,
+/// receipt, letter, form, resume, report, other) using an AI provider over
+/// its extracted text.
+#[uniffi::export]
+pub fn ai_classify(pdf_bytes: Vec<u8>, provider: AiProviderConfig) -> Result<String, PdfFreeError> {
+    let provider = build_ai_provider(provider);
+    Ok(pdfree_ai::classify::classify(
+        &pdf_bytes,
+        provider.as_ref(),
+    )?)
+}
+
+// ---------------------------------------------------------------------------
+// AI (Phase 7): schema-driven extraction, document diff/redline.
+// ---------------------------------------------------------------------------
+
+/// One field to look for — see [`ai_extract_schema`].
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct SchemaField {
+    pub name: String,
+    pub description: String,
+}
+
+/// A field the model found a value for — see [`ai_extract_schema`].
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct ExtractedValue {
+    pub field_name: String,
+    pub value: String,
+}
+
+/// Extract caller-defined fields (name + description of what it means) from
+/// a document via an AI provider. Returns only the fields it found an
+/// actual value for; like `ai_suggest_form_fills`, this is a suggestion
+/// list for a review UI, never auto-applied anywhere.
+#[uniffi::export]
+pub fn ai_extract_schema(
+    pdf_bytes: Vec<u8>,
+    schema: Vec<SchemaField>,
+    provider: AiProviderConfig,
+) -> Result<Vec<ExtractedValue>, PdfFreeError> {
+    let schema: Vec<pdfree_ai::schema_extract::SchemaField> = schema
+        .into_iter()
+        .map(|f| pdfree_ai::schema_extract::SchemaField {
+            name: f.name,
+            description: f.description,
+        })
+        .collect();
+    let provider = build_ai_provider(provider);
+    let values = pdfree_ai::schema_extract::extract(&pdf_bytes, &schema, provider.as_ref())?;
+    Ok(values
+        .into_iter()
+        .map(|v| ExtractedValue {
+            field_name: v.field_name,
+            value: v.value,
+        })
+        .collect())
+}
+
+/// What kind of change a [`TextChange`] represents. Mirrors
+/// `pdfree_ai::diff::ChangeKind`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum ChangeKind {
+    Unchanged,
+    Added,
+    Removed,
+}
+
+impl From<pdfree_ai::diff::ChangeKind> for ChangeKind {
+    fn from(kind: pdfree_ai::diff::ChangeKind) -> Self {
+        match kind {
+            pdfree_ai::diff::ChangeKind::Unchanged => ChangeKind::Unchanged,
+            pdfree_ai::diff::ChangeKind::Added => ChangeKind::Added,
+            pdfree_ai::diff::ChangeKind::Removed => ChangeKind::Removed,
+        }
+    }
+}
+
+/// One contiguous run of same-kind words — see [`diff_documents`].
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct TextChange {
+    pub kind: ChangeKind,
+    pub text: String,
+}
+
+/// The changes found on one page — see [`diff_documents`].
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct PageDiff {
+    pub page: u16,
+    pub changes: Vec<TextChange>,
+}
+
+/// Diff two versions of a document, page by page, word-level — fully local,
+/// geometry/text-driven (no AI provider involved). Pages are aligned by
+/// index, not matched by content, so inserting/removing a page in the
+/// middle of a document shows every following page as fully changed — see
+/// `pdfree_ai::diff`'s module docs for why.
+#[uniffi::export]
+pub fn diff_documents(
+    old_bytes: Vec<u8>,
+    new_bytes: Vec<u8>,
+) -> Result<Vec<PageDiff>, PdfFreeError> {
+    Ok(pdfree_ai::diff::diff_documents(&old_bytes, &new_bytes)?
+        .into_iter()
+        .map(|d| PageDiff {
+            page: d.page,
+            changes: d
+                .changes
+                .into_iter()
+                .map(|c| TextChange {
+                    kind: c.kind.into(),
+                    text: c.text,
+                })
+                .collect(),
+        })
         .collect())
 }

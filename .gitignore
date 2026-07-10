@@ -20,6 +20,10 @@ target
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+# E2E test corpus — real public-domain forms fetched by
+# scripts/fetch-test-corpus.sh; never committed (same policy as PDFium).
+/tests/corpus/*.pdf
+
 # Bundled native PDFium binaries — fetched per-platform, never committed.
 # Run scripts/fetch-pdfium.sh to populate vendor/pdfium/.
 /vendor/pdfium/*.so

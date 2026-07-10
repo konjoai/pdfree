@@ -113,6 +113,43 @@ fn rotates_a_page_and_it_renders_differently() {
 }
 
 #[test]
+fn rotation_accumulates_and_four_quarter_turns_return_to_start() {
+    skip_without_pdfium!();
+
+    // Each rotate is relative to the page's current orientation, so four
+    // clockwise-90 turns come back to upright. (The old absolute-set bug
+    // would leave the page stuck at 90° no matter how many times applied.)
+    let mut bytes = SAMPLE.to_vec();
+    let original = Document::from_bytes(bytes.clone(), None)
+        .unwrap()
+        .render_page(0, &RenderOptions::with_dpi(72.0))
+        .unwrap();
+
+    let mut after_one: Option<Vec<u8>> = None;
+    for i in 0..4 {
+        bytes = pages::rotate(&bytes, 0, Rotation::Clockwise90).expect("rotate");
+        if i == 0 {
+            after_one = Some(bytes.clone());
+        }
+    }
+
+    let full_circle = Document::from_bytes(bytes, None)
+        .unwrap()
+        .render_page(0, &RenderOptions::with_dpi(72.0))
+        .unwrap();
+    let single = Document::from_bytes(after_one.unwrap(), None)
+        .unwrap()
+        .render_page(0, &RenderOptions::with_dpi(72.0))
+        .unwrap();
+
+    assert_ne!(single, original, "one 90° turn must change the render");
+    assert_eq!(
+        full_circle, original,
+        "four 90° turns must return to the original orientation"
+    );
+}
+
+#[test]
 fn rotate_rejects_an_out_of_range_page() {
     skip_without_pdfium!();
 

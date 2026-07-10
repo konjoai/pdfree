@@ -20,6 +20,20 @@ use crate::error::{PdfError, Result};
 /// Returns an error if `PDFium` cannot be loaded or the bytes are not a
 /// readable PDF.
 pub fn to_text(pdf_bytes: &[u8]) -> Result<String> {
+    Ok(to_text_per_page(pdf_bytes)?.join("\n\n"))
+}
+
+/// Extract the plain-text content of each page separately, index-aligned
+/// with the page number. Same underlying extraction as [`to_text`] — this
+/// just skips the join, for callers (like `pdfree-ai`'s document diff) that
+/// need page boundaries preserved rather than inferring them by splitting
+/// `to_text`'s output back apart.
+///
+/// # Errors
+///
+/// Returns an error if `PDFium` cannot be loaded or the bytes are not a
+/// readable PDF.
+pub fn to_text_per_page(pdf_bytes: &[u8]) -> Result<Vec<String>> {
     let pdfium = crate::pdfium::bind()?;
     let document = pdfium.load_pdf_from_byte_slice(pdf_bytes, None)?;
 
@@ -27,7 +41,7 @@ pub fn to_text(pdf_bytes: &[u8]) -> Result<String> {
     for page in document.pages().iter() {
         pages_text.push(page.text()?.all());
     }
-    Ok(pages_text.join("\n\n"))
+    Ok(pages_text)
 }
 
 /// Build a single-page PDF containing the given image (PNG, JPEG, or any

@@ -66,6 +66,21 @@ fn discovers_form_fields_with_kinds_and_initial_values() {
 }
 
 #[test]
+fn form_fields_report_the_page_and_rect_of_their_widget() {
+    skip_without_pdfium!();
+
+    let found = forms::fields(FORM_SAMPLE).expect("enumerate fields");
+    let name_field = found
+        .iter()
+        .find(|f| f.name == "FullName")
+        .expect("FullName field present");
+
+    assert_eq!(name_field.page, 0, "single-page fixture");
+    assert!(name_field.width > 0.0, "width = {}", name_field.width);
+    assert!(name_field.height > 0.0, "height = {}", name_field.height);
+}
+
+#[test]
 fn fills_text_and_checkbox_fields_and_persists_the_values() {
     skip_without_pdfium!();
 

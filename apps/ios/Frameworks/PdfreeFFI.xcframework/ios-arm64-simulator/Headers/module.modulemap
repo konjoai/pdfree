@@ -1,0 +1,4 @@
+module pdfree_ffiFFI {
+    header "pdfree_ffiFFI.h"
+    export *
+}
