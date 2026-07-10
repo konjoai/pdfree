@@ -115,10 +115,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust (x86_64-pc-windows-msvc)
+      - name: Install Rust (x86_64-pc-windows-msvc + wasm32)
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-pc-windows-msvc
+          targets: x86_64-pc-windows-msvc, wasm32-unknown-unknown
 
       - uses: Swatinem/rust-cache@v2
 
@@ -126,6 +126,22 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      # The web frontend statically imports the compiled pdfree-wasm module
+      # (apps/web/src/wasm/ — git-ignored, built by scripts/build-wasm.sh), so
+      # tsc/vite need it present at build time even though the Tauri shell uses
+      # native `invoke` (not WASM) at runtime. Version must match Cargo.lock.
+      - name: Install wasm-bindgen-cli
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@0.2.126
+
+      - name: Build WASM frontend module
+        shell: bash
+        run: |
+          cargo build --release -p pdfree-wasm --target wasm32-unknown-unknown
+          wasm-bindgen target/wasm32-unknown-unknown/release/pdfree_wasm.wasm \
+            --target web --out-dir apps/web/src/wasm --out-name pdfree_wasm
 
       # Tauri ships the web frontend as its UI. tauri.conf.json's frontendDist
       # points at apps/web/dist and there is no beforeBuildCommand, so build it
