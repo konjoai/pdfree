@@ -101,8 +101,13 @@ graphics alone (closed cells, "open" cells with dividers but no top/bottom
 rule, and lone rectangles — see `docs/api.md` for the tier breakdown);
 `box_at_point` is a point-driven convenience wrapper over it. Powers the
 macOS app's scan-on-load box highlighting; not in the original phase plan,
-added alongside that UI work). Phase 4 is otherwise platform shells,
-Phases 5–7 add `pdfree-ai`.
+added alongside that UI work), `search.rs` + `bookmarks.rs` (Phase 4
+quick wins ✅ engine-side — `find_text` in-document search over
+`editor::text_runs`, `outline` wrapping `pdfium-render`'s already-bound
+bookmark tree; see Phase 4 below — neither is wired into a shell's UI yet).
+Phase 4 is otherwise platform shells, Phases 5–7 add `pdfree-ai` (except
+`confidence.rs`, a quick win pulled forward and already implemented — see
+`docs/ai-design.md`).
 
 ---
 
@@ -265,22 +270,35 @@ protects against competitors wrapping it as a SaaS.
 - [x] `forms.rs`: overlay text boxes on non-interactive PDFs (`forms::overlay_text`)
 - [x] Tests: fill a real IRS Form 1040 PDF (`tests/fixtures/irs_f1040.pdf`,
       fetched from irs.gov), assert field values persist after save/reload
-- [x] `forms.rs`: `FormField` now carries `page: u16` and flat `x`/`y`/`width`/
-      `height` (PDF points, from the field's own annotation `bounds()` —
-      same pattern as `editor::TextRun`), populated in `fields()` alongside
-      `name`/`kind`/`value`. Unblocks Phase 4's auto-detect-and-overlay-boxes
-      UX (Core UX Principles, above): a shell can now place every AcroForm
-      field's affordance without a separate lookup, and correlate a field's
-      `kind == Signature` (or a name match against `/sign|initial/i`) to its
-      on-page location for the sign-vs-fill routing. Mirrored through
-      `pdfree-ffi`'s `FormField` record; Swift bindings regenerated.
-- [ ] `forms.rs`: `fill()` needs deterministic font-size-fit-once logic —
-      currently there is zero font-size handling in `fill()` (no `/DA`
-      reading, no shrink logic); sizing is left entirely to PDFium's internal
-      form-render behavior, which is the likely source of the "text
-      resizes/gets cut off on export" problem. Needs to compute a size once
-      from the field rect + text at fill time and bake it in, so it never
-      changes between the fill view and the exported PDF.
+- [x] `forms.rs`: `FormField` now carries `page: u16` plus flat `x`/`y`/
+      `width`/`height: f32` fields (matching the `TextRun`/`AnnotationInfo`
+      convention already used elsewhere in the crate, not a `rect` tuple),
+      populated from each widget annotation's own bounds. **Unblocks Phase 4**:
+      a shell can now scan the whole document once and get page + bounding
+      rect for every field to pre-render an input affordance, no manual
+      double-click placement needed. Mirrored into `pdfree-ffi`'s `FormField`
+      record so the FFI surface doesn't drift behind core. Verified against
+      the real, multi-page IRS 1040 fixture (`tests/forms.rs`) — every
+      discovered field reports a plausible page index and non-empty rect.
+- [x] `forms.rs`: `fill()`'s deterministic font-size-fit-once logic was
+      **investigated and confirmed not achievable** with the current binding,
+      rather than left as an open TODO. Read `pdfium-render` 0.8.37's own
+      source: setting a text field's rendered font size means writing its
+      widget's `/DA` string, and the only calls that can touch an annotation's
+      dictionary keys (`FPDFAnnot_SetStringValue_str` and friends) live behind
+      a `pub(crate)`-only trait the crate deliberately keeps unexposed — there
+      is no annotation handle or dictionary-key setter reachable from outside
+      `pdfium-render` for a `PdfFormField`. So sizing stays entirely
+      `PDFium`'s own form-render behavior at export time (the likely source of
+      the "text resizes/gets cut off on export" symptom), and this is
+      documented as a real gap in `forms.rs`'s module doc and `docs/api.md`
+      rather than silently left unaddressed. Revisit only if a future
+      `pdfium-render` release exposes a public setter, or forking/vendoring
+      the binding is ever worth the maintenance cost.
+- [x] `forms.rs` / `pdfree-ffi`: `FormField` also carries a
+      `signature_kind` (`None`/`Signature`/`Initials`) classified once in core
+      via `SignatureFieldKind::classify`, so every shell routes signature/
+      initials fields to the sign flow identically (Core UX Principle #3).
 
 ### Phase 2 — Sign + Annotate ✅ CORE DONE (crypto signing deferred)
 - [x] `signatures.rs`: place signature image at coordinates (`place_signature`)
@@ -804,6 +822,19 @@ protects against competitors wrapping it as a SaaS.
       ("end-to-end click-driven UI testing... wasn't done from this sandbox").
       Worth a real click-through pass next time this app is tested from a
       environment where computer-use click coordinates are reliable.
+- [x] **Engine-side quick wins from the 2026-07-03 feature research pass**
+      (merged from PR #9) — 4 features buildable/testable without a
+      macOS/Xcode toolchain or network: `search::find_text` (in-document
+      "⌘F", reuses `editor::text_runs`), `bookmarks::outline` (document
+      outline tree, wraps `pdfium-render`'s bookmark API), `pages::bates_number`
+      (sequential legal/discovery stamping, reuses the `overlay_text`
+      primitive), and `pdfree_ai::confidence::ground_check` (grounding/
+      hallucination check for any future AI-produced value — no model call,
+      no provider needed). All four are pure `pdfree-core`/`pdfree-ai`, fully
+      unit tested (`tests/search.rs`, `tests/bookmarks.rs`, the `bates_*`
+      tests in `tests/pages.rs`, `confidence::tests` inline) — see
+      `docs/api.md` and `docs/ai-design.md`. **Shell wiring** (search UI,
+      outline sidebar, Bates dialog) is not yet done.
 
 ### Phase 6 — AI Tier 2 (Differentiators)
 - [x] `redact.rs`: PII detection is regex-based (SSN, email, phone, credit

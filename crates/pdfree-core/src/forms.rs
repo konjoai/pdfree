@@ -7,6 +7,21 @@
 //! underlying binding actually supports: `PDFium` exposes setters for text
 //! fields and checkboxes, but not for selecting an option in a dropdown or
 //! list box — see [`FillValue`] and [`fill`] for the exact contract.
+//!
+//! **Known gap: no font-size control on text field fill.** `fill()` cannot
+//! bake in a deterministic "fit once" font size for a text field, and this is
+//! a confirmed limitation of `pdfium-render` 0.8.37, not an oversight to fix
+//! later with more code: setting a field's rendered font size means writing
+//! its widget's `/DA` (default appearance) string, and the only bindings that
+//! can touch an annotation's dictionary keys (`FPDFAnnot_SetStringValue_str`
+//! and friends, via `PdfFormFieldPrivate`) live in a `pub(crate)` module the
+//! crate deliberately does not expose — there is no annotation handle or
+//! dictionary-key setter reachable from outside `pdfium-render` for a
+//! [`PdfFormField`]. Filled text is therefore sized entirely by `PDFium`'s own
+//! form-render behavior at export time, which is the likely source of the
+//! "text resizes/gets cut off on export" symptom. Revisit if a future
+//! `pdfium-render` release exposes a public setter; there is no lower-risk
+//! workaround available today short of vendoring/forking the binding.
 
 use std::collections::HashMap;
 

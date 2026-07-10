@@ -9,9 +9,13 @@
 //! - Every AI action states where processing happens — no silent uploads.
 //!
 //! The [`provider`] module defines a trait-based abstraction so any feature can
-//! run against a local or cloud backend interchangeably.
+//! run against a local or cloud backend interchangeably. [`confidence`] is the
+//! exception among the feature modules — it needs no provider at all: a plain
+//! grounding check any of the others can run on a value before showing it to
+//! the user.
 
 pub mod classify;
+pub mod confidence;
 pub mod diff;
 pub mod extract;
 pub mod formfill;

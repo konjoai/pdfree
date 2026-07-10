@@ -91,12 +91,29 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         ENABLE_HARDENED_RUNTIME: NO
         TEST_TARGET_NAME: PDFree
+# Defining any scheme disables xcodegen's per-target auto-scheme generation,
+# so all three are declared explicitly.
 schemes:
+  PDFree:
+    build:
+      targets:
+        PDFree: all
+    run:
+      config: Debug
+  PDFreeTests:
+    build:
+      targets:
+        PDFreeTests: [test]
+    test:
+      config: Debug
+      targets:
+        - PDFreeTests
   PDFreeUITests:
     build:
       targets:
         PDFree: all
         PDFreeUITests: [test]
     test:
+      config: Debug
       targets:
         - PDFreeUITests

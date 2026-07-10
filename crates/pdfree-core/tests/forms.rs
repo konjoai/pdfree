@@ -46,6 +46,11 @@ fn discovers_form_fields_with_kinds_and_initial_values() {
         .find(|f| f.name == "FullName")
         .expect("FullName field present");
     assert_eq!(name_field.kind, FieldKind::Text);
+    assert_eq!(name_field.page, 0);
+    assert!(
+        name_field.width > 0.0 && name_field.height > 0.0,
+        "expected a non-empty widget rect, got {name_field:?}"
+    );
 
     let checkbox_field = found
         .iter()
@@ -53,6 +58,11 @@ fn discovers_form_fields_with_kinds_and_initial_values() {
         .expect("AgreeToTerms field present");
     assert_eq!(checkbox_field.kind, FieldKind::Checkbox);
     assert_eq!(checkbox_field.value.as_deref(), Some("false"));
+    assert_eq!(checkbox_field.page, 0);
+    assert!(
+        checkbox_field.width > 0.0 && checkbox_field.height > 0.0,
+        "expected a non-empty widget rect, got {checkbox_field:?}"
+    );
 }
 
 #[test]
@@ -218,6 +228,29 @@ fn fills_a_real_irs_form_1040_and_field_values_persist() {
     assert!(found
         .iter()
         .any(|f| f.name == DIGITAL_ASSETS_YES && f.kind == FieldKind::Checkbox));
+
+    // Every field on a real, multi-page AcroForm must report a plausible page
+    // index and a non-empty widget rect — this is what lets a shell scan the
+    // whole document once and pre-render an input affordance for every field,
+    // instead of falling back to manual double-click placement.
+    let page_count = Document::from_bytes(IRS_F1040.to_vec(), None)
+        .unwrap()
+        .page_count();
+    assert!(
+        found
+            .iter()
+            .all(|f| f.page < page_count && f.width > 0.0 && f.height > 0.0),
+        "every field must have a plausible page + non-empty rect"
+    );
+    assert!(
+        found
+            .iter()
+            .map(|f| f.page)
+            .collect::<std::collections::HashSet<_>>()
+            .len()
+            > 1,
+        "the 1040 spans multiple pages; expected fields on more than one"
+    );
 
     let filled = forms::fill(
         IRS_F1040,
