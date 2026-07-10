@@ -96,9 +96,9 @@ struct InspectorView: View {
             sectionLabel("TOOLS")
             toolRow(
                 title: "Fill fields", systemImage: "rectangle.and.pencil.and.ellipsis",
-                isActive: tool == .select, badge: store.formFieldsList.isEmpty ? nil : "\(store.formFieldsList.count)",
+                isActive: tool == .fill, badge: store.formFieldsList.isEmpty ? nil : "\(store.formFieldsList.count)",
                 badgeTint: .green
-            ) { tool = .select }
+            ) { tool = .fill }
             toolRow(
                 title: "Sign", systemImage: "signature",
                 isActive: tool == .sign, badge: store.signatureFields.isEmpty ? nil : "\(store.signatureFields.count)",

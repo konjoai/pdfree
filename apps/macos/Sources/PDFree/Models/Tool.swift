@@ -3,7 +3,12 @@ import Foundation
 /// The active canvas interaction mode. Drag-based tools draw a rectangle;
 /// everything else is a single click at a point.
 enum Tool: String, CaseIterable, Identifiable {
+    /// The default, non-editing view mode — no field affordances drawn, so a
+    /// non-fillable PDF just reads cleanly until the user picks a tool.
     case select
+    /// Field-fill mode: entered by the "Fill fields" button, this is what
+    /// reveals the detected fillable-field overlays and click-to-fill.
+    case fill
     case highlight
     case underline
     case strikeout
@@ -17,6 +22,7 @@ enum Tool: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .select: return "Select"
+        case .fill: return "Fill fields"
         case .highlight: return "Highlight"
         case .underline: return "Underline"
         case .strikeout: return "Strikeout"
@@ -30,6 +36,7 @@ enum Tool: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .select: return "cursorarrow"
+        case .fill: return "rectangle.and.pencil.and.ellipsis"
         case .highlight: return "highlighter"
         case .underline: return "underline"
         case .strikeout: return "strikethrough"

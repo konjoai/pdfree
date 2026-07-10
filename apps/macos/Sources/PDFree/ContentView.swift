@@ -112,12 +112,27 @@ struct ContentView: View {
     private var titlebar: some View {
         ZStack {
             LinearGradient(colors: [Theme.Color.titlebarTop, Theme.Color.titlebarBottom], startPoint: .top, endPoint: .bottom)
+
+            // Centered document title, padded clear of the corner marks.
             if store.hasDocument {
                 Text(store.title)
                     .font(Theme.Font.titlebarTitle)
                     .foregroundStyle(Theme.Color.textRow)
-            } else {
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .padding(.horizontal, 210)
+            }
+
+            HStack {
+                // Leading offset clears the window's traffic-light buttons
+                // (the title bar is hidden, so they float over this bar).
                 Wordmark(size: .small)
+                    .padding(.leading, 78)
+                Spacer()
+                // Green document mark in the upper-right, above the inspector's
+                // "Add or merge" button.
+                AppMark(style: .document, size: 22)
+                    .padding(.trailing, 16)
             }
         }
         .frame(height: Theme.Metric.titlebarHeight)
@@ -167,6 +182,16 @@ struct ContentView: View {
                     pageNavBar
                 } else {
                     ProgressView("Loading…").tint(.white)
+                }
+            }
+            .overlay {
+                // Scroll/swipe over the canvas turns pages (pass-through, so
+                // clicks and drags still reach the page).
+                if store.hasDocument {
+                    ScrollPageFlipper(
+                        onNext: { store.goToPage(store.pageIndex &+ 1) },
+                        onPrev: { if store.pageIndex > 0 { store.goToPage(store.pageIndex &- 1) } }
+                    )
                 }
             }
             .overlay(alignment: .trailing) {
@@ -239,6 +264,9 @@ struct ContentView: View {
     private func handleTap(_ point: CGPoint) {
         switch tool {
         case .select:
+            // Plain view mode — no field affordances, nothing to click.
+            break
+        case .fill:
             if let overlay = store.fieldOverlay(containingX: Float(point.x), y: Float(point.y)) {
                 if overlay.isSignature, let field = matchingField(overlay) {
                     beginSigning(from: field)

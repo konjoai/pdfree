@@ -64,7 +64,7 @@ struct PageCanvasView: View {
                 .gesture(dragGesture)
                 .simultaneousGesture(combinedTapGesture)
 
-            if tool == .select || tool == .sign {
+            if tool == .fill || tool == .sign {
                 ForEach(fieldOverlays) { overlay in
                     fieldOverlayView(overlay)
                 }
@@ -184,19 +184,34 @@ struct PageCanvasView: View {
             for: inlineEditText, boxWidthPts: CGFloat(box.width), boxHeightPts: CGFloat(box.height)
         )
         let fontSizePx = ptsPerPixel > 0 ? fontSizePts / ptsPerPixel : fontSizePts
+        // Manual "Add text" is seamless: transparent, so the user sees the
+        // page underneath and exactly where the text lands, with only a thin
+        // dashed guide + baseline — never a raised opaque box. A detected
+        // form field keeps its solid white fill (the field is white anyway).
+        let seamless = tool == .overlayText
         return TextField("", text: $inlineEditText)
             .textFieldStyle(.plain)
             .font(.system(size: fontSizePx))
             .foregroundColor(.black)
             .tint(Theme.Color.green)
-            .padding(.horizontal, 4)
-            .frame(width: max(rect.width, 24), height: max(rect.height, 16))
-            .background(Color.white, in: RoundedRectangle(cornerRadius: Theme.Metric.fieldRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.Metric.fieldRadius)
-                    .stroke(Theme.Color.green, lineWidth: 2)
-                    .shadow(color: Theme.Color.fieldFocusRing, radius: 4)
-            )
+            .padding(.horizontal, seamless ? 1 : 4)
+            .frame(width: max(rect.width, 24), height: max(rect.height, 16), alignment: .leading)
+            .background(seamless ? Color.clear : Color.white, in: RoundedRectangle(cornerRadius: Theme.Metric.fieldRadius))
+            .overlay(alignment: .bottom) {
+                if seamless {
+                    Rectangle().fill(Theme.Color.green.opacity(0.65)).frame(height: 1)
+                }
+            }
+            .overlay {
+                if seamless {
+                    RoundedRectangle(cornerRadius: 3)
+                        .stroke(Theme.Color.green.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                } else {
+                    RoundedRectangle(cornerRadius: Theme.Metric.fieldRadius)
+                        .stroke(Theme.Color.green, lineWidth: 2)
+                        .shadow(color: Theme.Color.fieldFocusRing, radius: 4)
+                }
+            }
             .position(x: rect.midX, y: rect.midY)
             .focused($inlineEditFocused)
             .onSubmit { onCommitInlineEdit() }
