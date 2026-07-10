@@ -109,6 +109,59 @@ jobs:
             ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
             test
 
+  windows:
+    name: Windows desktop installer (Tauri)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (x86_64-pc-windows-msvc)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Tauri ships the web frontend as its UI. tauri.conf.json's frontendDist
+      # points at apps/web/dist and there is no beforeBuildCommand, so build it
+      # explicitly before packaging.
+      - name: Build web frontend
+        working-directory: apps/web
+        run: |
+          npm install
+          npm run build
+
+      # Fetch pdfium.dll into vendor/pdfium/. tauri.windows.conf.json bundles it
+      # as a resource and lib.rs points PDFIUM_DYNAMIC_LIB_PATH at the resource
+      # dir at runtime. Git Bash on windows-latest has curl + tar.
+      - name: Fetch PDFium (win-x64)
+        shell: bash
+        run: scripts/fetch-pdfium.sh win-x64
+
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli@^2
+
+      - name: Build installer
+        working-directory: apps/desktop
+        run: tauri build
+
+      # Workspace target dir is at the repo root; Tauri writes installers under
+      # target/release/bundle/{msi,nsis}.
+      - name: Upload installer
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdfree-windows-x64-installer
+          path: |
+            target/release/bundle/msi/*.msi
+            target/release/bundle/nsis/*.exe
+          if-no-files-found: warn
+
   macos-ui:
     name: macOS UI tests (phase 2, allowed to fail)
     runs-on: macos-14
