@@ -61,6 +61,30 @@ const MIN_BOX_AREA: f32 = 36.0;
 /// area check while being nothing like a fillable box.
 const MIN_RECT_DIMENSION: f32 = 4.0;
 
+/// Shortest horizontal ruled line, in points, that can be a fill-in-the-blank
+/// underline. Below this it's more likely a checkbox edge, a divider stub, or
+/// glyph detail than a "write on this line" field.
+const MIN_UNDERLINE_LEN: f32 = 26.0;
+
+/// Default height, in points, of the input affordance placed *above* a
+/// detected underline — roughly one line of hand/typed entry.
+const UNDERLINE_FIELD_HEIGHT: f32 = 16.0;
+
+/// The shortest an underline field is allowed to shrink to when the writable
+/// space above the line is tight.
+const MIN_UNDERLINE_FIELD_HEIGHT: f32 = 9.0;
+
+/// Minimum empty vertical room, in points, that must sit above a horizontal
+/// line for it to count as a writable fill line. A line packed tightly under
+/// another rule is a table band, not a blank to fill.
+const MIN_FILL_GAP: f32 = 8.0;
+
+/// When one box fully contains another whose area is below this fraction of
+/// it, the outer box is treated as a *container region* (a section border,
+/// an outer table frame) rather than a field of its own — see
+/// [`prefer_inner_fields`].
+const CONTAINER_INNER_RATIO: f32 = 0.9;
+
 /// Reconstruct every fillable box (drawn rectangle, or table cell formed by
 /// ruled lines) on `page`, in PDF points. Meant to be called once as a page
 /// loads so a shell can highlight every box up front, rather than
@@ -253,7 +277,132 @@ pub fn boxes_on_page(pdf_bytes: &[u8], page: u16) -> Result<Vec<DetectedBox>> {
         );
     }
 
-    Ok(boxes)
+    // Tier 4: fill-in-the-blank underlines — a lone horizontal ruled line you
+    // write *on*, the single most common "field" on real-world forms
+    // (`Name: ______`, `Weight: ______ lbs`). These have no enclosing box at
+    // all, so the cell tiers above never see them. A line only qualifies if
+    // no vertical divider meets it (that would make it a cell edge, already
+    // handled) and there's open room above it to actually write. The
+    // affordance is placed sitting on top of the line.
+    //
+    // Underlines are collected separately, then appended, so
+    // `prefer_inner_fields` below can tell a leaf field from a container.
+    let underline_start = boxes.len();
+    for (y, spans) in &h_rulings {
+        for &(lo, hi) in spans {
+            if hi - lo < MIN_UNDERLINE_LEN {
+                continue;
+            }
+            if vertical_meets(&v_rulings, lo, hi, *y) {
+                continue;
+            }
+            let gap_above = h_rulings
+                .iter()
+                .filter(|(y2, s2)| *y2 > *y + TOLERANCE && spans_overlap(s2, lo, hi))
+                .map(|(y2, _)| *y2 - *y)
+                .fold(f32::INFINITY, f32::min);
+            if gap_above < MIN_FILL_GAP {
+                continue;
+            }
+            let height = if gap_above.is_finite() {
+                (gap_above - 2.0).clamp(MIN_UNDERLINE_FIELD_HEIGHT, UNDERLINE_FIELD_HEIGHT)
+            } else {
+                UNDERLINE_FIELD_HEIGHT
+            };
+            // Dedup underlines only against each other and against
+            // similarly-sized boxes (a cell that already captured this line)
+            // — *not* against a much larger enclosing region, which
+            // `prefer_inner_fields` is responsible for removing instead.
+            let candidate = DetectedBox {
+                page,
+                x: lo,
+                y: *y,
+                width: hi - lo,
+                height,
+            };
+            if !(MIN_BOX_AREA..=max_area).contains(&candidate.area()) {
+                continue;
+            }
+            let duplicates_peer = boxes.iter().enumerate().any(|(i, b)| {
+                overlap_ratio(b, &candidate) > 0.6
+                    && (i >= underline_start || b.area() <= candidate.area() * 3.0)
+            });
+            if duplicates_peer {
+                continue;
+            }
+            boxes.push(candidate);
+        }
+    }
+
+    Ok(prefer_inner_fields(boxes, underline_start))
+}
+
+/// Drop any box that acts as a *container* for real fields rather than being
+/// a field itself: a section border or outer table frame that fully encloses
+/// smaller boxes. Core UX Principle: "if there is a field or fields inside of
+/// a box, highlight the fields only." A box is dropped when it fully contains
+/// either any underline field or at least two smaller boxes — a plain cell
+/// that merely holds a single checkbox is left alone.
+fn prefer_inner_fields(boxes: Vec<DetectedBox>, underline_start: usize) -> Vec<DetectedBox> {
+    let is_underline = |i: usize| i >= underline_start;
+    let n = boxes.len();
+    let mut drop = vec![false; n];
+    for i in 0..n {
+        // A leaf fill line is never itself a container.
+        if is_underline(i) {
+            continue;
+        }
+        let mut inner_boxes = 0;
+        let mut inner_underline = false;
+        for j in 0..n {
+            if i == j {
+                continue;
+            }
+            if fully_contains(&boxes[i], &boxes[j])
+                && boxes[j].area() < CONTAINER_INNER_RATIO * boxes[i].area()
+            {
+                inner_boxes += 1;
+                inner_underline |= is_underline(j);
+            }
+        }
+        if inner_underline || inner_boxes >= 2 {
+            drop[i] = true;
+        }
+    }
+    boxes
+        .into_iter()
+        .enumerate()
+        .filter(|(i, _)| !drop[*i])
+        .map(|(_, b)| b)
+        .collect()
+}
+
+/// Whether `outer` fully encloses `inner` (within [`TOLERANCE`]).
+fn fully_contains(outer: &DetectedBox, inner: &DetectedBox) -> bool {
+    inner.x >= outer.x - TOLERANCE
+        && inner.y >= outer.y - TOLERANCE
+        && inner.x + inner.width <= outer.x + outer.width + TOLERANCE
+        && inner.y + inner.height <= outer.y + outer.height + TOLERANCE
+}
+
+/// Whether any of `spans` overlaps `[lo, hi]`.
+fn spans_overlap(spans: &[(f32, f32)], lo: f32, hi: f32) -> bool {
+    spans
+        .iter()
+        .any(|&(a, b)| a <= hi + TOLERANCE && lo <= b + TOLERANCE)
+}
+
+/// Whether a vertical ruling actually meets the horizontal line at height `y`
+/// somewhere across `[lo, hi]` — i.e. this horizontal span is a cell edge,
+/// not a free-standing fill line.
+fn vertical_meets(v_rulings: &[(f32, Vec<(f32, f32)>)], lo: f32, hi: f32, y: f32) -> bool {
+    v_rulings.iter().any(|(vx, vspans)| {
+        *vx >= lo - TOLERANCE
+            && *vx <= hi + TOLERANCE
+            && vspans
+                .iter()
+                .any(|&(a, b)| a - TOLERANCE <= y && y <= b + TOLERANCE)
+    })
 }
 
 /// Find the smallest box from [`boxes_on_page`] that encloses `(x, y)` —

@@ -10,7 +10,7 @@ env:
 
 jobs:
   test:
-    name: build + test
+    name: rust build + test + accuracy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,3 +36,99 @@ jobs:
 
       - name: Test
         run: cargo test --workspace
+
+      # E2E accuracy suite (Phase 1): grade every feature against a corpus of
+      # real public-domain forms and emit a reviewable report + overlay PNGs.
+      # A *hard* round-trip failure fails the build; detection counts and soft
+      # checks are informational. The report is uploaded for human review.
+      - name: Fetch test corpus
+        run: scripts/fetch-test-corpus.sh
+
+      - name: Accuracy report
+        run: cargo run --release -p pdfree-core --example accuracy_report
+
+      - name: Upload accuracy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accuracy-report
+          path: target/accuracy-report/
+          if-no-files-found: warn
+
+  macos:
+    name: macOS app build + unit tests
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (aarch64-apple-darwin)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Fetch PDFium
+        run: scripts/fetch-pdfium.sh
+
+      - name: Build FFI dylib + Swift bindings
+        run: scripts/build-macos.sh
+
+      - name: Generate Xcode project
+        working-directory: apps/macos
+        run: xcodegen generate
+
+      - name: Unit tests
+        working-directory: apps/macos
+        run: |
+          xcodebuild \
+            -project PDFree.xcodeproj \
+            -scheme PDFreeTests \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+            test
+
+  macos-ui:
+    name: macOS UI tests (phase 2, allowed to fail)
+    runs-on: macos-14
+    # XCUITest driving NSOpenPanel / drag gestures is inherently flaky in
+    # headless CI; kept non-blocking until it's proven stable (see
+    # apps/macos/UITests). Reports status without gating the merge.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (aarch64-apple-darwin)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Fetch PDFium
+        run: scripts/fetch-pdfium.sh
+
+      - name: Build FFI dylib + Swift bindings
+        run: scripts/build-macos.sh
+
+      - name: Generate Xcode project
+        working-directory: apps/macos
+        run: xcodegen generate
+
+      - name: UI tests
+        working-directory: apps/macos
+        run: |
+          xcodebuild \
+            -project PDFree.xcodeproj \
+            -scheme PDFreeUITests \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+            test

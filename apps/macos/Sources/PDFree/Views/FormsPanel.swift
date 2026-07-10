@@ -12,7 +12,7 @@ struct FormsPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Fill Form Fields").font(.headline)
+            Text("Fill Form Fields").font(.headline).foregroundStyle(Theme.Color.textHigh)
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(store.formFieldsList, id: \.name) { field in
@@ -28,6 +28,7 @@ struct FormsPanel: View {
         }
         .padding()
         .frame(width: 420, height: 480)
+        .background(Theme.Color.popoverBg)
         .onAppear(perform: seed)
     }
 

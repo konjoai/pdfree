@@ -99,7 +99,10 @@ pub fn split(pdf_bytes: &[u8], ranges: &[(u16, u16)]) -> Result<Vec<Vec<u8>>> {
     Ok(out)
 }
 
-/// Rotate one page, returning the updated PDF as new bytes.
+/// Rotate one page *relative to its current orientation* (so repeated
+/// clockwise-90 calls cycle a page through all four orientations), returning
+/// the updated PDF as new bytes. `Rotation::None` is a no-op that leaves the
+/// page's existing rotation untouched.
 ///
 /// # Errors
 ///
@@ -114,9 +117,37 @@ pub fn rotate(pdf_bytes: &[u8], page: u16, rotation: Rotation) -> Result<Vec<u8>
     }
 
     let mut target = document.pages().get(page)?;
-    target.set_rotation(rotation.to_pdfium());
+    // Add the requested turn to whatever rotation the page already carries,
+    // modulo a full turn — `set_rotation` alone sets an *absolute* value, so
+    // pressing "rotate right" repeatedly would keep re-setting the same 90°
+    // instead of advancing 90° → 180° → 270° → 0°.
+    let combined = quarter_turns(rotation_of(&target)) + quarter_turns(rotation.to_pdfium());
+    target.set_rotation(rotation_from_quarter_turns(combined));
 
     Ok(document.save_to_bytes()?)
+}
+
+/// The page's current rotation, defaulting to upright if it can't be read.
+fn rotation_of(page: &PdfPage) -> PdfPageRenderRotation {
+    page.rotation().unwrap_or(PdfPageRenderRotation::None)
+}
+
+fn quarter_turns(r: PdfPageRenderRotation) -> u8 {
+    match r {
+        PdfPageRenderRotation::None => 0,
+        PdfPageRenderRotation::Degrees90 => 1,
+        PdfPageRenderRotation::Degrees180 => 2,
+        PdfPageRenderRotation::Degrees270 => 3,
+    }
+}
+
+fn rotation_from_quarter_turns(turns: u8) -> PdfPageRenderRotation {
+    match turns % 4 {
+        1 => PdfPageRenderRotation::Degrees90,
+        2 => PdfPageRenderRotation::Degrees180,
+        3 => PdfPageRenderRotation::Degrees270,
+        _ => PdfPageRenderRotation::None,
+    }
 }
 
 /// Extract the given 0-based page indices, in the given order, into a new

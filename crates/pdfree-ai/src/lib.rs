@@ -9,16 +9,19 @@
 //! - Every AI action states where processing happens — no silent uploads.
 //!
 //! The [`provider`] module defines a trait-based abstraction so any feature can
-//! run against a local or cloud backend interchangeably. Feature modules
-//! ([`rag`], [`ocr`], [`redact`], [`extract`], [`classify`]) are scaffolded for
-//! Phases 5–7 and currently return [`AiError::NotImplemented`].
+//! run against a local or cloud backend interchangeably.
 
 pub mod classify;
+pub mod diff;
 pub mod extract;
+pub mod formfill;
+mod json_util;
 pub mod ocr;
 pub mod provider;
 pub mod rag;
 pub mod redact;
+pub mod schema_extract;
+pub mod summarize;
 
 /// Result alias for the AI layer.
 pub type Result<T> = std::result::Result<T, AiError>;

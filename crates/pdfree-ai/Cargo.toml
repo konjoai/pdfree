@@ -12,3 +12,17 @@ rust-version.workspace = true
 pdfree-core = { path = "../pdfree-core" }
 thiserror.workspace = true
 log.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+
+[dev-dependencies]
+# Tests hit a real local Ollama instance when present (see provider.rs tests)
+# rather than mocking HTTP — this crate has no test-only mock-server dep to
+# keep the dependency list honest about what's actually exercised.
+#
+# `image` generates a real PNG in-memory for ocr.rs's test rather than a
+# hand-typed byte literal — a mistyped PNG byte array is a real footgun
+# (IDAT/zlib corruption isn't visually obvious in a hex dump).
+image.workspace = true

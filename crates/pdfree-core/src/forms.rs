@@ -25,6 +25,58 @@ pub struct FormField {
     /// for checkboxes; the raw text for text fields; `None` for unset or
     /// unreadable fields.
     pub value: Option<String>,
+    /// 0-based page index this field's widget is on.
+    pub page: u16,
+    /// Horizontal position of the field's widget rect, from the page's left edge.
+    pub x: f32,
+    /// Vertical position of the field's widget rect, from the page's bottom edge.
+    pub y: f32,
+    /// Width of the field's widget rect.
+    pub width: f32,
+    /// Height of the field's widget rect.
+    pub height: f32,
+    /// Whether this field should route to the sign flow instead of a plain
+    /// text input, and if so, whether it's a full signature or (lighter-
+    /// weight) initials — see [`SignatureFieldKind`].
+    pub signature_kind: SignatureFieldKind,
+}
+
+/// Whether a field is a signature/initials field a shell should route to the
+/// sign flow (Core UX Principles: "signature/initials fields are special-
+/// cased" — never a plain text input) — and if so, which of the two.
+///
+/// The PDF spec has no distinct "initials" field type — `PDFium` only reports
+/// [`FieldKind::Signature`] for a true digital-signature widget, and most
+/// real-world non-crypto e-sign forms use an ordinary text field for both
+/// "sign here" and "initial here" lines. So this is a name-based heuristic
+/// layered on top of the real field kind, computed once here (rather than in
+/// every shell) so macOS/web/Tauri/iOS classify a field identically.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SignatureFieldKind {
+    /// An ordinary field — fill it as text.
+    None,
+    /// A full signature.
+    Signature,
+    /// Initials — the shell should offer a lighter-weight signer UI.
+    Initials,
+}
+
+impl SignatureFieldKind {
+    /// Classify a field from its `AcroForm` kind and its name/tooltip.
+    /// "Initials" is checked before the broader "sign" match since an
+    /// initials field's name may not otherwise contain "sign" at all, while
+    /// checking order the other way could never distinguish the two.
+    #[must_use]
+    pub fn classify(name: &str, kind: FieldKind) -> Self {
+        let lower = name.to_lowercase();
+        if lower.contains("initial") {
+            SignatureFieldKind::Initials
+        } else if kind == FieldKind::Signature || lower.contains("sign") {
+            SignatureFieldKind::Signature
+        } else {
+            SignatureFieldKind::None
+        }
+    }
 }
 
 /// The kind of an `AcroForm` field.
@@ -89,13 +141,25 @@ pub fn fields(pdf_bytes: &[u8]) -> Result<Vec<FormField>> {
     let document = pdfium.load_pdf_from_byte_slice(pdf_bytes, None)?;
 
     let mut out = Vec::new();
-    for page in document.pages().iter() {
+    for (page_index, page) in document.pages().iter().enumerate() {
         for annotation in page.annotations().iter() {
             if let Some(field) = annotation.as_form_field() {
+                let bounds = annotation.bounds().unwrap_or(PdfRect::ZERO);
+                let name = field.name().unwrap_or_default();
+                let kind = FieldKind::from_pdfium(field.field_type());
                 out.push(FormField {
-                    name: field.name().unwrap_or_default(),
-                    kind: FieldKind::from_pdfium(field.field_type()),
+                    signature_kind: SignatureFieldKind::classify(&name, kind),
                     value: field_value(field),
+                    name,
+                    kind,
+                    // Page counts are u16 throughout this crate; page_index is
+                    // bounded by document.pages().len(), so this never truncates.
+                    #[allow(clippy::cast_possible_truncation)]
+                    page: page_index as u16,
+                    x: bounds.left().value,
+                    y: bounds.bottom().value,
+                    width: bounds.width().value,
+                    height: bounds.height().value,
                 });
             }
         }
@@ -252,4 +316,72 @@ pub fn overlay_text(pdf_bytes: &[u8], overlays: &[TextOverlay]) -> Result<Vec<u8
     }
 
     Ok(document.save_to_bytes()?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FieldKind, SignatureFieldKind};
+
+    #[test]
+    fn classifies_a_true_signature_field_kind_regardless_of_name() {
+        assert_eq!(
+            SignatureFieldKind::classify("topmostSubform[0].sig[0]", FieldKind::Signature),
+            SignatureFieldKind::Signature
+        );
+        // Even a name that wouldn't otherwise match "sign"/"initial".
+        assert_eq!(
+            SignatureFieldKind::classify("widget_47", FieldKind::Signature),
+            SignatureFieldKind::Signature
+        );
+    }
+
+    #[test]
+    fn classifies_a_text_field_named_like_a_signature_line() {
+        for name in [
+            "Your signature",
+            "signature_1",
+            "SIGN_HERE",
+            "Please_Sign.Line",
+        ] {
+            assert_eq!(
+                SignatureFieldKind::classify(name, FieldKind::Text),
+                SignatureFieldKind::Signature,
+                "expected {name} to classify as Signature"
+            );
+        }
+    }
+
+    #[test]
+    fn classifies_a_text_field_named_like_initials_as_initials_not_signature() {
+        for name in ["Initial here", "spouse_initials", "INITIALS_1"] {
+            assert_eq!(
+                SignatureFieldKind::classify(name, FieldKind::Text),
+                SignatureFieldKind::Initials,
+                "expected {name} to classify as Initials"
+            );
+        }
+    }
+
+    #[test]
+    fn classifies_an_ordinary_field_as_none() {
+        for name in ["FullName", "city", "zip_code", ""] {
+            assert_eq!(
+                SignatureFieldKind::classify(name, FieldKind::Text),
+                SignatureFieldKind::None,
+                "expected {name} to classify as None"
+            );
+        }
+    }
+
+    #[test]
+    fn is_case_insensitive() {
+        assert_eq!(
+            SignatureFieldKind::classify("SiGnAtUrE_LiNe", FieldKind::Text),
+            SignatureFieldKind::Signature
+        );
+        assert_eq!(
+            SignatureFieldKind::classify("InItIaLs", FieldKind::Text),
+            SignatureFieldKind::Initials
+        );
+    }
 }

@@ -44,4 +44,10 @@ enum Tool: String, CaseIterable, Identifiable {
     var isDragBased: Bool {
         self == .highlight || self == .underline || self == .strikeout
     }
+
+    /// The annotation family, surfaced together by the canvas's floating
+    /// annotate toolbar.
+    var isAnnotation: Bool {
+        self == .highlight || self == .underline || self == .strikeout || self == .note
+    }
 }

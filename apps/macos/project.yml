@@ -17,6 +17,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.konjo.pdfree.macos
         GENERATE_INFOPLIST_FILE: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_NSHumanReadableCopyright: "Konjo AI"
         INFOPLIST_KEY_CFBundleDisplayName: PDFree
         SWIFT_OBJC_BRIDGING_HEADER: Sources/Bridge/pdfree_ffiFFI.h
@@ -39,3 +40,63 @@ targets:
         ENABLE_HARDENED_RUNTIME: NO
         MARKETING_VERSION: "0.0.1"
         CURRENT_PROJECT_VERSION: "1"
+  PDFreeTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      # Compiles PDFree's own sources directly into the test bundle rather
+      # than testing via a TEST_HOST — simpler than host-application testing
+      # for a project this size, and sidesteps `@testable import` entirely.
+      # PDFreeApp.swift is excluded because its `@main` would otherwise
+      # collide with the one already provided by XCTest's own bundle loader.
+      - path: Sources/PDFree
+        excludes:
+          - "PDFreeApp.swift"
+      - path: Sources/Bridge
+        excludes:
+          - "*.modulemap"
+      - path: Tests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.konjo.pdfree.macos.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Bridge/pdfree_ffiFFI.h
+        # Same dev-only linking as PDFree itself (see that target's comment) —
+        # this target calls straight into pdfree-ffi too, so it needs the
+        # same search paths.
+        LIBRARY_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(SRCROOT)/../../target/aarch64-apple-darwin/release"
+        OTHER_LDFLAGS:
+          - "-lpdfree_ffi"
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(SRCROOT)/../../target/aarch64-apple-darwin/release"
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: NO
+  # Phase 2 of the e2e suite: drives the real app UI (launch, empty state,
+  # tool switching). Kept minimal + non-blocking in CI (see ci.yml's
+  # macos-ui job) until XCUITest is proven stable headlessly.
+  PDFreeUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: PDFree
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.konjo.pdfree.macos.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: NO
+        TEST_TARGET_NAME: PDFree
+schemes:
+  PDFreeUITests:
+    build:
+      targets:
+        PDFree: all
+        PDFreeUITests: [test]
+    test:
+      targets:
+        - PDFreeUITests

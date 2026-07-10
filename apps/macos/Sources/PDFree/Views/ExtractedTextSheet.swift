@@ -7,15 +7,17 @@ struct ExtractedTextSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Extracted Text").font(.headline)
+            Text("Extracted Text").font(.headline).foregroundStyle(Theme.Color.textHigh)
             ScrollView {
                 Text(text)
                     .textSelection(.enabled)
+                    .foregroundStyle(Theme.Color.textRow)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(8)
             }
             .frame(width: 480, height: 400)
-            .border(Color.secondary.opacity(0.3))
+            .background(Color.white.opacity(0.04))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.08)))
             HStack {
                 Button("Copy") {
                     NSPasteboard.general.clearContents()
@@ -26,5 +28,6 @@ struct ExtractedTextSheet: View {
             }
         }
         .padding()
+        .background(Theme.Color.popoverBg)
     }
 }
