@@ -71,6 +71,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # xcodegen (brew-latest) emits a modern project format; pin to a recent
+      # Xcode so `xcodebuild` can read it (the runner default can lag).
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
       - name: Install Rust (aarch64-apple-darwin)
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -111,6 +118,13 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
+
+      # xcodegen (brew-latest) emits a modern project format; pin to a recent
+      # Xcode so `xcodebuild` can read it (the runner default can lag).
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
       - name: Install Rust (aarch64-apple-darwin)
         uses: dtolnay/rust-toolchain@stable
