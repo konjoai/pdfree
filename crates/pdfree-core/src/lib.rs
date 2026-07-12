@@ -35,6 +35,7 @@ pub mod convert;
 pub mod document;
 pub mod editor;
 pub mod error;
+pub mod fields;
 pub mod forms;
 pub mod pages;
 pub mod pdfium;

@@ -112,6 +112,15 @@ pub fn boxes_on_page(pdf_bytes: &[u8], page: u16) -> Result<Vec<DetectedBox>> {
     }
 
     let loaded = document.pages().get(page)?;
+    Ok(detect_boxes(&loaded, page))
+}
+
+/// The pure geometric core of [`boxes_on_page`], operating on an
+/// already-loaded page so a caller that has also loaded the same document for
+/// other work (see [`crate::fields`]) doesn't have to re-parse the PDF just to
+/// run the box scan. Prefer this over calling [`boxes_on_page`] a second time
+/// on the same document.
+pub(crate) fn detect_boxes(loaded: &PdfPage<'_>, page: u16) -> Vec<DetectedBox> {
     let page_area = (loaded.width().value.max(0.0) * loaded.height().value.max(0.0)).max(1.0);
     let max_area = page_area * MAX_BOX_AREA_RATIO;
 
@@ -334,7 +343,7 @@ pub fn boxes_on_page(pdf_bytes: &[u8], page: u16) -> Result<Vec<DetectedBox>> {
         }
     }
 
-    Ok(prefer_inner_fields(boxes, underline_start))
+    prefer_inner_fields(boxes, underline_start)
 }
 
 /// Drop any box that acts as a *container* for real fields rather than being

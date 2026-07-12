@@ -30,6 +30,9 @@ final class PDFDocumentStoreTests: XCTestCase {
         let data = try openOrSkip("form_sample")
 
         store.openReplacing(data: data, url: nil)
+        // `openReplacing` parses off the main thread now, so wait for the
+        // whole-document field list to land before asserting on it.
+        waitUntil { store.formFieldsList.count == 2 }
 
         XCTAssertTrue(store.hasDocument)
         XCTAssertNil(store.errorMessage)
@@ -44,6 +47,7 @@ final class PDFDocumentStoreTests: XCTestCase {
         let data = try openOrSkip("signature_fields")
 
         store.openReplacing(data: data, url: nil)
+        waitUntil { !store.formFieldsList.isEmpty }
 
         let fields = store.signatureFields
         XCTAssertEqual(fields.count, 2, "signature_1 + initials_1, not full_name")
@@ -52,31 +56,36 @@ final class PDFDocumentStoreTests: XCTestCase {
         XCTAssertFalse(fields.contains { $0.name == "full_name" })
     }
 
-    func testFieldOverlaysAreSynthesizedForSignatureFieldsWithNoDetectedBox() throws {
+    func testFieldOverlaysIncludeEveryAcroFormFieldEvenWithNoDetectedBox() throws {
         let store = PDFDocumentStore()
-        // This fixture has raw AcroForm widgets and zero vector graphics, so
-        // `boxesOnPage` finds nothing — the only way these fields get an
-        // on-canvas overlay at all is the unmatched-signature-field
-        // synthesis in `PDFDocumentStore.computeFieldOverlays` (added
-        // specifically because clicking a signature field that boxesOnPage
-        // missed used to do nothing at all).
+        // This fixture has raw AcroForm widgets and zero vector graphics.
+        // `pdfree_core::fields::fillable_fields` always reports real AcroForm
+        // widgets (that's the "never miss a fillable field" guarantee), so
+        // every field — including ones no drawn box surrounds — gets an
+        // overlay, with signature/initials fields marked distinctly.
         let data = try openOrSkip("signature_fields")
 
         store.openReplacing(data: data, url: nil)
+        waitUntil { !store.fieldOverlays.isEmpty }
 
-        XCTAssertTrue(store.detectedBoxes.isEmpty, "fixture has no vector graphics to detect")
         let overlayNames = Set(store.fieldOverlays.compactMap(\.fieldName))
         XCTAssertTrue(overlayNames.contains("signature_1"))
         XCTAssertTrue(overlayNames.contains("initials_1"))
+        XCTAssertTrue(overlayNames.contains("full_name"))
         XCTAssertTrue(
             store.fieldOverlays.allSatisfy { $0.fieldName != "signature_1" || $0.isSignature },
             "signature_1's overlay must be marked as a signature field, not a normal one"
+        )
+        XCTAssertTrue(
+            store.fieldOverlays.allSatisfy { $0.fieldName != "full_name" || !$0.isSignature },
+            "full_name is an ordinary field, not a signature one"
         )
     }
 
     func testCloseDocumentResetsToEmptyState() throws {
         let store = PDFDocumentStore()
         store.openReplacing(data: try openOrSkip("form_sample"), url: nil)
+        waitUntil { store.hasDocument }
         XCTAssertTrue(store.hasDocument)
 
         store.closeDocument()
@@ -88,16 +97,31 @@ final class PDFDocumentStoreTests: XCTestCase {
         XCTAssertNil(store.pageImage)
     }
 
-    func testBoxContainingResolvesAPointToTheSmallestEnclosingBox() {
+    func testBoxContainingIsNilWithNoDocument() {
         let store = PDFDocumentStore()
-        // `detectedBoxes` is populated internally by page rendering; since
-        // this test only needs `boxContaining`'s own containment/tie-break
-        // logic (not real detection), it isn't worth loading a document just
-        // to exercise it — covered indirectly by the overlay test above.
+        // `boxContaining` hit-tests `fieldOverlays`, which is empty with no
+        // document open, so any point resolves to nothing.
         XCTAssertNil(store.boxContaining(x: 0, y: 0), "no document loaded, nothing to contain the point")
     }
 
     // MARK: - Helpers
+
+    /// Pump the main run loop until `condition` holds or `timeout` elapses.
+    /// The store's open/render/scan work runs on a background queue and
+    /// republishes on the main queue, so a test has to let the run loop turn
+    /// for those results to arrive.
+    private func waitUntil(
+        timeout: TimeInterval = 5,
+        _ condition: () -> Bool,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition() && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        }
+        XCTAssertTrue(condition(), "condition not met within \(timeout)s", file: file, line: line)
+    }
 
     /// Loads a bundled fixture, skipping (not failing) the test if the
     /// PDFium dylib isn't available in this environment — mirrors

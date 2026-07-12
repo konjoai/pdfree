@@ -101,7 +101,13 @@ graphics alone (closed cells, "open" cells with dividers but no top/bottom
 rule, and lone rectangles — see `docs/api.md` for the tier breakdown);
 `box_at_point` is a point-driven convenience wrapper over it. Powers the
 macOS app's scan-on-load box highlighting; not in the original phase plan,
-added alongside that UI work), `search.rs` + `bookmarks.rs` (Phase 4
+added alongside that UI work), `fields.rs` (label-aware fillable-field
+detection — the accurate list a shell should highlight: every `AcroForm`
+widget plus every *labeled* detected box, in one document parse. Replaces
+raw `boxes_on_page` as the macOS overlay source so decorative/unlabeled
+rectangles stop being highlighted and real `AcroForm` fields with no drawn
+box stop being missed — see `docs/api.md`'s "Fields" section and the
+2026-07-12 note in Phase 4 below), `search.rs` + `bookmarks.rs` (Phase 4
 quick wins ✅ engine-side — `find_text` in-document search over
 `editor::text_runs`, `outline` wrapping `pdfium-render`'s already-bound
 bookmark tree; see Phase 4 below — neither is wired into a shell's UI yet).
@@ -458,6 +464,42 @@ protects against competitors wrapping it as a SaaS.
       are still accurate and still apply; only `ContentView`'s layout and
       the field-overlay/sign-flow views were reworked, not the store's FFI
       call sites.
+
+      **2026-07-12 performance + field-detection accuracy pass** (Wes tested
+      the build: "slow to load, especially opening the file picker" and
+      "fillable fields are still off — highlights things that aren't fields,
+      misses real fields; should only highlight fields that have labels"):
+      - *Accuracy*: new `pdfree_core::fields::fillable_fields` replaces the
+        raw `boxes_on_page` scan as the macOS overlay source (also exposed
+        over FFI + wasm; web UI adoption is follow-up). It returns every
+        `AcroForm` widget (so a real field with no drawn box is never missed)
+        **plus** only those detected boxes that have a human-readable label
+        immediately to their left or just above them (so decorative/layout
+        rectangles with no label stop being highlighted) — the exact "only
+        detect fields with labels" ask. Label-matching (`best_label`) is a
+        pure function, unit-tested without `PDFium`; a labeled "Signature"
+        line on a flat form routes to the sign flow (new
+        `ActiveSheet.signatureBox`) instead of a text caret. `PDFDocumentStore`
+        dropped `detectedBoxes`/`computeFieldOverlays` for this single call;
+        the canvas field-count chip and `boxContaining` now read the
+        label-aware `fieldOverlays`. See `docs/api.md`'s "Fields" section.
+      - *Performance*: every `PDFium`-backed FFI call (`fromBytes`, render,
+        page-size, field scan, and all mutations) now runs off the main
+        thread on one **serial** `ffiQueue` in `PDFDocumentStore`, publishing
+        results back on main — so opening a document, flipping pages, filling,
+        and signing never freeze the UI. Serial on purpose: `PDFium` isn't
+        safe to bind/drive from two threads at once. `docToken`/`renderToken`
+        generation guards drop stale background results (fast page flips apply
+        only the newest render). Added free byte-slice `render_page`/
+        `page_size` FFI functions so rendering/measuring happen from `Data`
+        off-main without sharing a `Document` handle across threads;
+        thumbnails render lazily on the same queue. Field overlays carry their
+        label as tooltip/accessibility text (CLAUDE.md UX research on
+        labelless controls). Rust builds/tests/clippy/fmt clean across
+        core/ffi/wasm; the Swift app couldn't be compiled from this sandbox
+        (no Xcode/SwiftUI SDK) — call sites were verified against the FFI
+        metadata and reviewed by hand, same limitation class noted elsewhere
+        in this doc.
 - [ ] **UX fixes from 2026-07-01 review** (see Core UX Principles above for
       full rationale) — these should land before further platform-shell work:
   - [x] Fix default zoom to fit-whole-page on load and on resize — the

@@ -101,11 +101,18 @@ struct PageCanvasView: View {
         let rect = toPixelRect(overlay.box)
         let isFocused = inlineEditBox.map { $0.x == overlay.box.x && $0.y == overlay.box.y } ?? false
 
-        if overlay.isSignature {
-            signatureFieldView(rect: rect)
-        } else {
-            normalFieldView(rect: rect, focused: isFocused)
+        Group {
+            if overlay.isSignature {
+                signatureFieldView(rect: rect)
+            } else {
+                normalFieldView(rect: rect, focused: isFocused)
+            }
         }
+        // The field's label announces what it's for — a persistent tooltip
+        // and screen-reader text, so an icon-only affordance is never silent
+        // (CLAUDE.md UX research on labelless controls).
+        .help(overlay.label ?? (overlay.isSignature ? "Signature" : "Fillable field"))
+        .accessibilityLabel(overlay.label ?? (overlay.isSignature ? "Signature field" : "Fillable field"))
     }
 
     private func normalFieldView(rect: CGRect, focused: Bool) -> some View {
