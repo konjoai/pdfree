@@ -256,38 +256,19 @@ fn best_label(bx: f32, by: f32, bw: f32, bh: f32, runs: &[LabelRun]) -> Option<S
         if !has_alnum(&run.text) {
             continue;
         }
-        let (rx, ry, rw, rh) = (run.x, run.y, run.width, run.height);
         // A run centered inside the box is filled content, not a label.
-        let (cx, cy) = (rx + rw / 2.0, ry + rh / 2.0);
-        if cx > bx + ALIGN_PAD
-            && cx < bx + bw - ALIGN_PAD
-            && cy > by + ALIGN_PAD
-            && cy < by + bh - ALIGN_PAD
-        {
+        if run_is_box_content(run, bx, by, bw, bh) {
             continue;
         }
-
-        let mut distance: Option<f32> = None;
-
-        // Left label: run ends at/just-before the box's left edge and shares
-        // its vertical band.
-        let run_right = rx + rw;
-        let left_gap = bx - run_right;
-        if (-ALIGN_PAD..=MAX_LEFT_GAP).contains(&left_gap)
-            && bands_overlap(by, by + bh, ry, ry + rh)
-        {
-            distance = Some(min_opt(distance, left_gap.max(0.0)));
-        }
-
-        // Above label: run sits just above the box's top edge and overlaps it
-        // horizontally.
-        let box_top = by + bh;
-        let above_gap = ry - box_top;
-        if (-ALIGN_PAD..=MAX_ABOVE_GAP).contains(&above_gap)
-            && bands_overlap(bx, bx + bw, rx, rx + rw)
-        {
-            distance = Some(min_opt(distance, above_gap.max(0.0)));
-        }
+        // The run's distance to the box if it qualifies as a left-hand label
+        // or a column header above — the nearest of the two if both apply.
+        let distance = [
+            left_label_gap(run, bx, by, bh),
+            above_label_gap(run, bx, by, bw, bh),
+        ]
+        .into_iter()
+        .flatten()
+        .reduce(f32::min);
 
         if let Some(distance) = distance {
             if best.map_or(true, |(d, _)| distance < d) {
@@ -298,10 +279,45 @@ fn best_label(bx: f32, by: f32, bw: f32, bh: f32, runs: &[LabelRun]) -> Option<S
     best.map(|(_, text)| clean_label(text))
 }
 
-fn min_opt(current: Option<f32>, candidate: f32) -> f32 {
-    match current {
-        Some(c) => c.min(candidate),
-        None => candidate,
+/// Whether `run`'s center point sits inside the box's interior (shrunk by
+/// [`ALIGN_PAD`] on every side) — i.e. the run is the box's own filled
+/// content rather than a label sitting next to it.
+fn run_is_box_content(run: &LabelRun, bx: f32, by: f32, bw: f32, bh: f32) -> bool {
+    let cx = run.x + run.width / 2.0;
+    let cy = run.y + run.height / 2.0;
+    cx > bx + ALIGN_PAD
+        && cx < bx + bw - ALIGN_PAD
+        && cy > by + ALIGN_PAD
+        && cy < by + bh - ALIGN_PAD
+}
+
+/// The gap (in points, `>= 0`) from `run`'s right edge to the box's left edge
+/// if `run` qualifies as a left-hand label — it ends within [`MAX_LEFT_GAP`]
+/// of (and no more than [`ALIGN_PAD`] past) the box's left edge and shares its
+/// vertical band. `None` if it doesn't qualify.
+fn left_label_gap(run: &LabelRun, bx: f32, by: f32, bh: f32) -> Option<f32> {
+    let left_gap = bx - (run.x + run.width);
+    if (-ALIGN_PAD..=MAX_LEFT_GAP).contains(&left_gap)
+        && bands_overlap(by, by + bh, run.y, run.y + run.height)
+    {
+        Some(left_gap.max(0.0))
+    } else {
+        None
+    }
+}
+
+/// The gap (in points, `>= 0`) from the box's top edge up to `run` if `run`
+/// qualifies as a column header sitting above the box — it's within
+/// [`MAX_ABOVE_GAP`] of (and no more than [`ALIGN_PAD`] below) the box's top
+/// edge and overlaps it horizontally. `None` if it doesn't qualify.
+fn above_label_gap(run: &LabelRun, bx: f32, by: f32, bw: f32, bh: f32) -> Option<f32> {
+    let above_gap = run.y - (by + bh);
+    if (-ALIGN_PAD..=MAX_ABOVE_GAP).contains(&above_gap)
+        && bands_overlap(bx, bx + bw, run.x, run.x + run.width)
+    {
+        Some(above_gap.max(0.0))
+    } else {
+        None
     }
 }
 
@@ -312,24 +328,17 @@ fn bands_overlap(a0: f32, a1: f32, b0: f32, b1: f32) -> bool {
 
 /// Whether an `AcroForm` field rect substantially covers a detected box (so
 /// the box is a duplicate of the real widget and should be dropped). True
-/// when the box's center is inside the field rect, or the two overlap over
-/// more than half the box's area.
+/// when the two rects overlap by more than half the *smaller* rect's area —
+/// which dedupes a widget and a same-size drawn box around it, and a small
+/// widget nested inside a larger detected box (or vice versa), while leaving a
+/// mere corner clip alone. Using the smaller rect's area (not the box's)
+/// keeps the criterion symmetric and reachable in both directions, so it's
+/// fully determined by the overlap geometry.
 fn covers(fx: f32, fy: f32, fw: f32, fh: f32, b: &DetectedBox) -> bool {
-    let (bcx, bcy) = (b.x + b.width / 2.0, b.y + b.height / 2.0);
-    let center_inside = bcx >= fx - ALIGN_PAD
-        && bcx <= fx + fw + ALIGN_PAD
-        && bcy >= fy - ALIGN_PAD
-        && bcy <= fy + fh + ALIGN_PAD;
-    if center_inside {
-        return true;
-    }
-    let x_overlap = (fx + fw).min(b.x + b.width) - fx.max(b.x);
-    let y_overlap = (fy + fh).min(b.y + b.height) - fy.max(b.y);
-    if x_overlap <= 0.0 || y_overlap <= 0.0 {
-        return false;
-    }
-    let box_area = (b.width * b.height).max(1.0);
-    (x_overlap * y_overlap) / box_area > 0.5
+    let x_overlap = ((fx + fw).min(b.x + b.width) - fx.max(b.x)).max(0.0);
+    let y_overlap = ((fy + fh).min(b.y + b.height) - fy.max(b.y)).max(0.0);
+    let smaller_area = (fw * fh).min(b.width * b.height).max(1.0);
+    (x_overlap * y_overlap) / smaller_area > 0.5
 }
 
 fn has_alnum(text: &str) -> bool {
@@ -431,6 +440,29 @@ mod tests {
     }
 
     #[test]
+    fn on_a_tie_the_first_qualifying_label_wins() {
+        // Both runs qualify as left labels (box left edge x=100, band
+        // [300,314]); the nearer one wins, and on an exact tie the incumbent
+        // (first seen) is kept — pinning the strict `<` tie-break.
+        let far_then_near = vec![
+            run("Far", 0.0, 300.0, 40.0, 10.0),   // right 40, gap 60
+            run("Near", 50.0, 300.0, 45.0, 10.0), // right 95, gap 5
+        ];
+        assert_eq!(
+            best_label(100.0, 300.0, 100.0, 14.0, &far_then_near).as_deref(),
+            Some("Near")
+        );
+        let tied = vec![
+            run("First", 50.0, 300.0, 45.0, 10.0), // right 95, gap 5
+            run("Second", 50.0, 305.0, 45.0, 9.0), // right 95, gap 5
+        ];
+        assert_eq!(
+            best_label(100.0, 300.0, 100.0, 14.0, &tied).as_deref(),
+            Some("First")
+        );
+    }
+
+    #[test]
     fn kind_fillable_excludes_push_buttons_and_unknown() {
         assert!(kind_is_fillable(FieldKind::Text));
         assert!(kind_is_fillable(FieldKind::Checkbox));
@@ -439,19 +471,171 @@ mod tests {
         assert!(!kind_is_fillable(FieldKind::Unknown));
     }
 
+    fn bx(x: f32, y: f32, w: f32, h: f32) -> DetectedBox {
+        DetectedBox {
+            page: 0,
+            x,
+            y,
+            width: w,
+            height: h,
+        }
+    }
+
     #[test]
     fn covers_detects_a_widget_over_a_detected_box() {
-        let b = DetectedBox {
-            page: 0,
-            x: 100.0,
-            y: 300.0,
-            width: 80.0,
-            height: 14.0,
-        };
+        let b = bx(100.0, 300.0, 80.0, 14.0);
         // Widget rect essentially on top of the box.
         assert!(covers(101.0, 301.0, 78.0, 12.0, &b));
         // A widget far away doesn't cover it.
         assert!(!covers(400.0, 100.0, 20.0, 10.0, &b));
+    }
+
+    #[test]
+    fn covers_true_when_rects_substantially_coincide() {
+        // Same-size box drawn around a widget.
+        assert!(covers(1.0, 1.0, 10.0, 10.0, &bx(0.0, 0.0, 10.0, 10.0)));
+        // A small widget fully nested in a larger detected box, and the
+        // reverse (small box nested in a larger widget) — both dedupe via the
+        // smaller rect's area.
+        assert!(covers(3.0, 3.0, 4.0, 4.0, &bx(0.0, 0.0, 10.0, 10.0)));
+        assert!(covers(0.0, 0.0, 20.0, 20.0, &bx(6.0, 6.0, 4.0, 4.0)));
+    }
+
+    #[test]
+    fn covers_false_for_a_mere_corner_clip() {
+        // Overlap is well under half the smaller rect.
+        assert!(!covers(8.0, 8.0, 10.0, 10.0, &bx(0.0, 0.0, 10.0, 10.0)));
+    }
+
+    #[test]
+    fn covers_false_when_disjoint_or_edge_touching() {
+        // Disjoint in x, disjoint in y, and touching exactly at an edge
+        // (zero overlap) all count as not covered.
+        assert!(!covers(50.0, 0.0, 10.0, 10.0, &bx(0.0, 0.0, 10.0, 10.0)));
+        assert!(!covers(0.0, 50.0, 10.0, 10.0, &bx(0.0, 0.0, 10.0, 10.0)));
+        assert!(!covers(10.0, 0.0, 10.0, 10.0, &bx(0.0, 0.0, 10.0, 10.0)));
+        assert!(!covers(0.0, 10.0, 10.0, 10.0, &bx(0.0, 0.0, 10.0, 10.0)));
+    }
+
+    #[test]
+    fn covers_is_decided_strictly_above_half_the_smaller_area() {
+        // Exactly half the smaller rect overlaps -> not covered (strict `>`).
+        assert!(!covers(0.0, 0.0, 10.0, 10.0, &bx(5.0, 0.0, 10.0, 10.0)));
+        // Just over half -> covered.
+        assert!(covers(0.0, 0.0, 10.0, 10.0, &bx(4.0, 0.0, 10.0, 10.0)));
+    }
+
+    #[test]
+    fn covers_uses_the_smaller_rects_area_as_the_denominator() {
+        // Overlap is exactly half of the field's area (the smaller rect):
+        // not covered. If the area were computed as width+height instead of
+        // width*height, the denominator would shrink and this would flip.
+        assert!(!covers(0.0, 0.0, 10.0, 6.0, &bx(5.0, 0.0, 10.0, 10.0)));
+        // Same, with the *box* as the smaller rect.
+        assert!(!covers(5.0, 0.0, 10.0, 10.0, &bx(0.0, 0.0, 10.0, 6.0)));
+    }
+
+    #[test]
+    fn bands_overlap_respects_the_alignment_pad() {
+        // Bands 3pt apart still overlap thanks to ALIGN_PAD (kills the pad
+        // being added instead of subtracted), tested both orderings.
+        assert!(bands_overlap(0.0, 10.0, 13.0, 20.0));
+        assert!(bands_overlap(13.0, 20.0, 0.0, 10.0));
+        // Clearly overlapping and clearly disjoint.
+        assert!(bands_overlap(0.0, 10.0, 5.0, 15.0));
+        assert!(!bands_overlap(0.0, 10.0, 50.0, 60.0));
+        // Disjoint bands where dividing by the pad (instead of subtracting)
+        // would wrongly report overlap, tested both orderings.
+        assert!(!bands_overlap(100.0, 110.0, 0.0, 40.0));
+        assert!(!bands_overlap(0.0, 40.0, 100.0, 110.0));
+    }
+
+    #[test]
+    fn run_is_box_content_only_when_center_is_strictly_inside() {
+        // Box (100,200) sized 100x50 → interior center range x in (103,197),
+        // y in (203,247). A run's center is (x + w/2, y + h/2).
+        let content =
+            |x, y| run_is_box_content(&run("x", x, y, 10.0, 10.0), 100.0, 200.0, 100.0, 50.0);
+        // Center clearly inside.
+        assert!(content(145.0, 215.0)); // center (150, 220)
+                                        // Center exactly on each padded boundary → excluded (strict compares).
+        assert!(!content(98.0, 215.0)); // cx = 103 == bx + PAD
+        assert!(!content(192.0, 215.0)); // cx = 197 == bx + bw - PAD
+        assert!(!content(145.0, 198.0)); // cy = 203 == by + PAD
+        assert!(!content(145.0, 242.0)); // cy = 247 == by + bh - PAD
+                                         // Far outside on both axes.
+        assert!(!content(0.0, 0.0));
+    }
+
+    #[test]
+    fn left_label_gap_qualifies_a_run_just_left_and_aligned() {
+        // Box left edge x=100, band y in [300,314].
+        let lg = |x, y, w, h| left_label_gap(&run("L", x, y, w, h), 100.0, 300.0, 14.0);
+        // Ends 10pt left of the box, same line → gap 10.
+        assert_eq!(lg(50.0, 300.0, 40.0, 10.0), Some(10.0));
+        // Ends right at the box's left edge (gap 0), and slightly past it (to
+        // −ALIGN_PAD) still qualifies, clamped to 0.
+        assert_eq!(lg(50.0, 300.0, 50.0, 10.0), Some(0.0));
+        assert_eq!(lg(50.0, 300.0, 53.0, 10.0), Some(0.0)); // left_gap = −3 (== −PAD)
+                                                            // Past the box by more than the pad → not a left label.
+        assert_eq!(lg(50.0, 300.0, 55.0, 10.0), None); // left_gap = −5
+                                                       // Exactly at the max reach vs one point beyond it.
+        assert_eq!(lg(0.0, 300.0, 40.0, 10.0), Some(60.0)); // left_gap = 60
+        assert_eq!(lg(0.0, 300.0, 39.0, 10.0), None); // left_gap = 61
+                                                      // Right distance, wrong line (vertical bands don't overlap) — several
+                                                      // positions above/below the box's band, which together pin the
+                                                      // band-extent arithmetic (`by + bh`, `run.y + run.height`) in the
+                                                      // overlap check: mutating those to `-`/`*` would distort a band enough
+                                                      // to wrongly report overlap for one of these.
+        assert_eq!(lg(50.0, 100.0, 40.0, 10.0), None); // band well below
+        assert_eq!(lg(50.0, 320.0, 40.0, 10.0), None); // band just above
+        assert_eq!(lg(50.0, 400.0, 40.0, 10.0), None); // band far above
+                                                       // A run one band down that still overlaps — kills mutating the box's
+                                                       // top-of-band `by + bh` into `by - bh`.
+        assert_eq!(lg(50.0, 310.0, 40.0, 10.0), Some(10.0));
+    }
+
+    #[test]
+    fn above_label_gap_qualifies_a_header_just_above_and_overlapping() {
+        // Box top edge y=320 (by=300,bh=20), horizontal span x in [100,190].
+        let ag = |x, y, w, h| above_label_gap(&run("H", x, y, w, h), 100.0, 300.0, 90.0, 20.0);
+        // Sits 6pt above the box, overlapping horizontally → gap 6.
+        assert_eq!(ag(120.0, 326.0, 40.0, 9.0), Some(6.0));
+        // Right at the top edge, and dipping to −ALIGN_PAD below it, clamp to 0.
+        assert_eq!(ag(120.0, 320.0, 40.0, 9.0), Some(0.0));
+        assert_eq!(ag(120.0, 317.0, 40.0, 9.0), Some(0.0)); // above_gap = −3
+                                                            // More than the pad below the top edge → not a header.
+        assert_eq!(ag(120.0, 316.0, 40.0, 9.0), None); // above_gap = −4
+                                                       // Exactly at the max reach vs one point beyond.
+        assert_eq!(ag(120.0, 342.0, 40.0, 9.0), Some(22.0)); // above_gap = 22
+        assert_eq!(ag(120.0, 343.0, 40.0, 9.0), None); // above_gap = 23
+                                                       // Right height, no horizontal overlap — several positions left/right
+                                                       // of the box's span, which pin the span arithmetic (`bx + bw`,
+                                                       // `run.x + run.width`) in the overlap check.
+        assert_eq!(ag(0.0, 326.0, 40.0, 9.0), None); // span left of the box
+        assert_eq!(ag(300.0, 326.0, 40.0, 9.0), None); // span right of the box
+        assert_eq!(ag(1000.0, 326.0, 40.0, 9.0), None); // span far right
+                                                        // A run whose left edge is left of the box but whose right edge just
+                                                        // reaches into it qualifies — so mutating `run.x + run.width` (its
+                                                        // right edge) to `-`/`*` drops or spuriously adds the overlap.
+        assert_eq!(ag(70.0, 326.0, 35.0, 9.0), Some(6.0)); // right edge 105, into [100,190]
+        assert_eq!(ag(50.0, 326.0, 40.0, 9.0), None); // right edge 90, short of the box
+    }
+
+    #[test]
+    fn non_empty_keeps_content_and_drops_blank() {
+        assert_eq!(non_empty("hi").as_deref(), Some("hi"));
+        assert_eq!(non_empty("  spaced  ").as_deref(), Some("spaced"));
+        assert_eq!(non_empty("   "), None);
+        assert_eq!(non_empty(""), None);
+    }
+
+    #[test]
+    fn has_alnum_detects_letters_or_digits() {
+        assert!(has_alnum("a"));
+        assert!(has_alnum("Total 7"));
+        assert!(!has_alnum("---"));
+        assert!(!has_alnum("   "));
     }
 
     #[test]

@@ -18,3 +18,22 @@ exclude_globs = [
     "crates/pdfree-ffi/**",
     "crates/pdfree-wasm/**",
 ]
+
+# The functions below are PDFium-coupled: they bind PDFium and iterate a
+# loaded document's annotations / page objects / path segments. Their mutants
+# can only be *caught* by the real-PDF integration tests — but cargo-mutants
+# builds each mutant in a scratch copy of the tree that doesn't contain the
+# runtime-loaded (gitignored, never-committed) PDFium library, so those tests
+# skip and the mutants survive regardless of coverage. They're integration-
+# tested instead (`crates/pdfree-core/tests/{fields,boxes}.rs`, against real
+# PDFs like the IRS 1040 fixture). The *pure* geometry/label logic they call
+# (`best_label`, `covers`, `bands_overlap`, the gap helpers, `cluster_rulings`,
+# `merge_spans`, …) stays fully mutation-tested by the inline unit tests.
+#   - fields::{fillable_fields, label_runs}
+#   - boxes::{boxes_on_page, detect_boxes}
+exclude_re = [
+    "fillable_fields",
+    "label_runs",
+    "boxes_on_page",
+    "detect_boxes",
+]
