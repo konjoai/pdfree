@@ -1,0 +1,39 @@
+# cargo-mutants configuration — read automatically from the workspace root by
+# any `cargo mutants` invocation (the local `scripts`, the Konjo `gates` job,
+# and konjo-gate.yml's G3 mutation job alike).
+#
+# Why this exists: the Konjo `gates` CI job runs cargo-mutants over a pull
+# request's changed files. On a large diff, left unbounded, the sweep runs long
+# enough that the CI runner is reclaimed mid-run (the job dies with exit 143
+# before cargo-mutants can report a verdict).
+#
+# `pdfree-ffi` and `pdfree-wasm` are the two largest changed surfaces in a
+# typical binding change, yet they are mechanical `From`/`Into` conversions and
+# thin pass-through wrappers around `pdfree-core` — the behaviour they expose is
+# already mutation-tested in the core, so mutating the bindings costs a large
+# share of the mutants (and wall-clock time) for little added signal. Excluding
+# them keeps the sweep inside the runner's budget while still mutation-testing
+# the real logic in `pdfree-core`.
+exclude_globs = [
+    "crates/pdfree-ffi/**",
+    "crates/pdfree-wasm/**",
+]
+
+# The functions below are PDFium-coupled: they bind PDFium and iterate a
+# loaded document's annotations / page objects / path segments. Their mutants
+# can only be *caught* by the real-PDF integration tests — but cargo-mutants
+# builds each mutant in a scratch copy of the tree that doesn't contain the
+# runtime-loaded (gitignored, never-committed) PDFium library, so those tests
+# skip and the mutants survive regardless of coverage. They're integration-
+# tested instead (`crates/pdfree-core/tests/{fields,boxes}.rs`, against real
+# PDFs like the IRS 1040 fixture). The *pure* geometry/label logic they call
+# (`best_label`, `covers`, `bands_overlap`, the gap helpers, `cluster_rulings`,
+# `merge_spans`, …) stays fully mutation-tested by the inline unit tests.
+#   - fields::{fillable_fields, label_runs}
+#   - boxes::{boxes_on_page, detect_boxes}
+exclude_re = [
+    "fillable_fields",
+    "label_runs",
+    "boxes_on_page",
+    "detect_boxes",
+]

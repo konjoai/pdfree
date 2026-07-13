@@ -1,18 +1,24 @@
 import AppKit
 import Foundation
 
-/// A scanned box (see `DetectedBox`) paired with whatever we could work out
-/// about the named `AcroForm` field underneath it, so the canvas can style
-/// signature/initials fields distinctly from ordinary fill boxes (Core UX
-/// Principles: "signature/initials fields are special-cased"). The
-/// signature/initials classification itself comes from `pdfree-core`
-/// (`FormField.signatureKind`), not a Swift-side heuristic, so every shell
-/// (macOS/web/Tauri/iOS) agrees on it.
+/// One fillable field to draw on the canvas, from `pdfree-core`'s label-aware
+/// `fillable_fields` scan: either a real `AcroForm` widget or a box/line kept
+/// because it had a nearby text label. Carries the signature/initials
+/// classification (so the canvas styles signing fields distinctly and never
+/// opens a text caret on them — Core UX Principle #3) and the matched label
+/// (for tooltip/accessibility text). The classification comes from the engine,
+/// not a Swift-side heuristic, so every shell (macOS/web/Tauri/iOS) agrees.
 struct FieldOverlayBox: Identifiable {
     let id = UUID()
     let box: DetectedBox
     let signatureKind: SignatureFieldKind
+    /// The `AcroForm` field name backing this overlay, when it came from a
+    /// real widget (`nil` for a label-detected box on a flat form).
     let fieldName: String?
+    /// The human-readable label the field was matched to — shown as the
+    /// overlay's accessibility/tooltip text so an icon-only affordance always
+    /// announces what it's for (CLAUDE.md UX research on labelless controls).
+    let label: String?
 
     var isSignature: Bool { signatureKind != .none }
 }
@@ -35,12 +41,10 @@ final class PDFDocumentStore: ObservableObject {
     @Published var pagePointSize: CGSize = .zero
     @Published var formFieldsList: [FormField] = []
     @Published var annotationsList: [AnnotationInfo] = []
-    /// Every fillable box (drawn rectangle or ruled-line table cell) on the
-    /// current page, scanned once per page load — presented up front rather
-    /// than guessed one click at a time.
-    @Published var detectedBoxes: [DetectedBox] = []
-    /// `detectedBoxes` merged with `formFieldsList`'s page/rect, classified
-    /// normal vs. signature — what `PageCanvasView` actually draws.
+    /// The label-aware fillable fields on the current page (see
+    /// `pdfree_core::fields::fillable_fields`) — every `AcroForm` widget plus
+    /// every label-detected box — computed once per page load and presented
+    /// up front. This is exactly what `PageCanvasView` draws.
     @Published var fieldOverlays: [FieldOverlayBox] = []
     @Published var errorMessage: String?
     @Published var isBusy = false
@@ -49,12 +53,30 @@ final class PDFDocumentStore: ObservableObject {
     @Published private(set) var savedSignatures: [SavedSignature] = []
 
     private var thumbnailCache: [UInt16: NSImage] = [:]
-    /// Per-page box scan (`boxesOnPage`) and page-size results, cached because
+    /// Thumbnail page indices with a background render in flight, so the same
+    /// page isn't queued twice while the sidebar re-renders.
+    private var pendingThumbnails: Set<UInt16> = []
+    /// Per-page fillable-field scan and page-size results, cached because
     /// neither changes when only the zoom/DPI changes — so a window resize
-    /// re-renders the image without re-running the (expensive) vector scan.
+    /// re-renders the image without re-running the (expensive) field scan.
     /// Cleared on open and on every mutation, since those can change geometry.
-    private var boxesCache: [UInt16: [DetectedBox]] = [:]
+    private var overlaysCache: [UInt16: [FieldOverlayBox]] = [:]
     private var pageSizeCache: [UInt16: CGSize] = [:]
+
+    /// Serial queue every `PDFium`-backed FFI call runs on, off the main
+    /// thread — so opening, rendering, scanning, and mutating never freeze the
+    /// UI. It's *serial* on purpose: `PDFium` isn't safe to bind/drive from two
+    /// threads at once (see `pages.rs`' "never two live bindings" note), so
+    /// operations are queued rather than run concurrently.
+    private let ffiQueue = DispatchQueue(label: "ai.konjo.pdfree.ffi", qos: .userInitiated)
+    /// Bumped whenever the document itself changes (open/mutate/close). A
+    /// background result whose captured token no longer matches is stale and
+    /// dropped, so a slow load can't clobber a newer document's state.
+    private var docToken = 0
+    /// Bumped on every render request (page change, resize, open, mutate).
+    /// Same staleness guard as `docToken`, but for the page image/overlays —
+    /// rapid page flips apply only the newest render's result, no flicker.
+    private var renderToken = 0
     /// Available canvas size, in pixels, that the current page should fit
     /// inside — set by the canvas view via `updateViewport` on load and on
     /// every resize (Core UX Principles: default view = whole page visible,
@@ -104,38 +126,66 @@ final class PDFDocumentStore: ObservableObject {
         loadRecentFiles()
     }
 
+    /// Open a document. The parse happens off the main thread so the picker
+    /// dismissing and the window staying responsive don't wait on it; the
+    /// currently-open document (if any) stays on screen until the new one is
+    /// ready, and a parse failure surfaces an error without tearing it down.
+    /// `viewportSize` is deliberately *not* reset here — it's a property of
+    /// the canvas, which doesn't change just because the document did, so
+    /// keeping it means the first render already fits-to-page instead of
+    /// briefly falling back to a fixed DPI.
     func openReplacing(data: Data, url: URL?) {
-        do {
-            let doc = try PdfDocument.fromBytes(data: data)
-            self.data = data
-            document = doc
-            fileURL = url
-            pageIndex = 0
-            thumbnailCache.removeAll()
-            boxesCache.removeAll()
-            pageSizeCache.removeAll()
-            viewportSize = .zero
-            rememberRecent(url)
-            refreshAfterLoad()
-        } catch {
-            errorMessage = describe(error)
+        isBusy = true
+        docToken += 1
+        let token = docToken
+        ffiQueue.async {
+            do {
+                let doc = try PdfDocument.fromBytes(data: data)
+                DispatchQueue.main.async {
+                    guard token == self.docToken else { return }
+                    self.data = data
+                    self.document = doc
+                    self.fileURL = url
+                    self.pageIndex = 0
+                    self.pageImage = nil
+                    self.fieldOverlays = []
+                    self.formFieldsList = []
+                    self.annotationsList = []
+                    self.thumbnailCache.removeAll()
+                    self.pendingThumbnails.removeAll()
+                    self.overlaysCache.removeAll()
+                    self.pageSizeCache.removeAll()
+                    self.isBusy = false
+                    self.rememberRecent(url)
+                    self.refreshAfterLoad()
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    guard token == self.docToken else { return }
+                    self.isBusy = false
+                    self.errorMessage = self.describe(error)
+                }
+            }
         }
     }
 
     /// Back to the empty state.
     func closeDocument() {
+        docToken += 1
+        renderToken += 1
         data = nil
         document = nil
         pageImage = nil
         pagePointSize = .zero
         formFieldsList = []
         annotationsList = []
-        detectedBoxes = []
         fieldOverlays = []
         fileURL = nil
         pageIndex = 0
+        isBusy = false
         thumbnailCache.removeAll()
-        boxesCache.removeAll()
+        pendingThumbnails.removeAll()
+        overlaysCache.removeAll()
         pageSizeCache.removeAll()
         viewportSize = .zero
     }
@@ -146,13 +196,30 @@ final class PDFDocumentStore: ObservableObject {
         renderCurrentPage()
     }
 
+    /// A page thumbnail. Returns the cached image immediately if present;
+    /// otherwise kicks a background render on `ffiQueue` (never `PDFium` on the
+    /// main thread) and returns `nil` for now — the sidebar refreshes once the
+    /// render lands in the cache. In-flight renders are deduped so scrolling
+    /// the rail doesn't queue the same page repeatedly.
     func thumbnail(at index: UInt16) -> NSImage? {
         if let cached = thumbnailCache[index] { return cached }
-        guard let document, let png = try? document.renderPage(index: index, dpi: UInt32(thumbnailDPI))
-        else { return nil }
-        let image = NSImage(data: png)
-        if let image { thumbnailCache[index] = image }
-        return image
+        guard let data, !pendingThumbnails.contains(index) else { return nil }
+        pendingThumbnails.insert(index)
+        let token = docToken
+        let dpi = thumbnailDPI
+        ffiQueue.async {
+            let png = try? renderPage(pdfBytes: data, index: index, dpi: UInt32(dpi))
+            let image = png.flatMap { NSImage(data: $0) }
+            DispatchQueue.main.async {
+                self.pendingThumbnails.remove(index)
+                guard token == self.docToken, let image else { return }
+                self.thumbnailCache[index] = image
+                // thumbnailCache isn't @Published (it's a plain cache), so nudge
+                // observers to re-read it now that this page is ready.
+                self.objectWillChange.send()
+            }
+        }
+        return nil
     }
 
     // MARK: - Mutations
@@ -160,24 +227,42 @@ final class PDFDocumentStore: ObservableObject {
     /// Apply an operation that transforms the current bytes into new bytes,
     /// then reload every derived piece of state (document handle, thumbnails,
     /// current page render, form fields, annotations) from the result.
-    func mutate(_ label: String, _ op: (Data) throws -> Data) {
+    ///
+    /// The transform *and* the reparse run off the main thread on `ffiQueue`,
+    /// so a heavy op (merge, sign, big overlay) doesn't freeze the UI — the
+    /// busy spinner shows meanwhile, and the result is published on main.
+    func mutate(_ label: String, _ op: @escaping (Data) throws -> Data) {
         guard let data else { return }
         isBusy = true
-        defer { isBusy = false }
-        do {
-            let newData = try op(data)
-            let newDoc = try PdfDocument.fromBytes(data: newData)
-            self.data = newData
-            document = newDoc
-            thumbnailCache.removeAll()
-            boxesCache.removeAll()
-            pageSizeCache.removeAll()
-            if pageIndex >= newDoc.pageCount() {
-                pageIndex = newDoc.pageCount() - 1
+        docToken += 1
+        renderToken += 1
+        let token = docToken
+        ffiQueue.async {
+            do {
+                let newData = try op(data)
+                let newDoc = try PdfDocument.fromBytes(data: newData)
+                let pageCount = newDoc.pageCount()
+                DispatchQueue.main.async {
+                    guard token == self.docToken else { return }
+                    self.data = newData
+                    self.document = newDoc
+                    self.thumbnailCache.removeAll()
+                    self.pendingThumbnails.removeAll()
+                    self.overlaysCache.removeAll()
+                    self.pageSizeCache.removeAll()
+                    if self.pageIndex >= pageCount {
+                        self.pageIndex = pageCount > 0 ? pageCount - 1 : 0
+                    }
+                    self.isBusy = false
+                    self.refreshAfterLoad()
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    guard token == self.docToken else { return }
+                    self.isBusy = false
+                    self.errorMessage = "\(label) failed: \(self.describe(error))"
+                }
             }
-            refreshAfterLoad()
-        } catch {
-            errorMessage = "\(label) failed: \(describe(error))"
         }
     }
 
@@ -251,42 +336,58 @@ final class PDFDocumentStore: ObservableObject {
         }
     }
 
-    func splitExport(ranges: [PageRange]) -> [Data]? {
-        guard let data else { return nil }
-        do {
-            return try splitDocument(pdfBytes: data, ranges: ranges)
-        } catch {
-            errorMessage = describe(error)
-            return nil
+    // These read-only FFI queries run on `ffiQueue` and call back on main,
+    // rather than blocking the caller — both to stay responsive and, just as
+    // importantly, so they never drive `PDFium` on the main thread while a
+    // render/scan is in flight on the queue (two concurrent bindings are
+    // unsafe; see `ffiQueue`'s note).
+
+    func splitExport(ranges: [PageRange], completion: @escaping ([Data]?) -> Void) {
+        guard let data else { completion(nil); return }
+        ffiQueue.async {
+            do {
+                let pieces = try splitDocument(pdfBytes: data, ranges: ranges)
+                DispatchQueue.main.async { completion(pieces) }
+            } catch {
+                DispatchQueue.main.async {
+                    self.errorMessage = self.describe(error)
+                    completion(nil)
+                }
+            }
         }
     }
 
-    func extractText() -> String? {
-        guard let data else { return nil }
-        do {
-            return try toText(pdfBytes: data)
-        } catch {
-            errorMessage = describe(error)
-            return nil
+    func extractText(completion: @escaping (String?) -> Void) {
+        guard let data else { completion(nil); return }
+        ffiQueue.async {
+            do {
+                let text = try toText(pdfBytes: data)
+                DispatchQueue.main.async { completion(text) }
+            } catch {
+                DispatchQueue.main.async {
+                    self.errorMessage = self.describe(error)
+                    completion(nil)
+                }
+            }
         }
     }
 
-    func textRun(atPage page: UInt16, x: Float, y: Float) -> TextRun? {
-        guard let data else { return nil }
-        do {
-            return try textRunAtPoint(pdfBytes: data, page: page, x: x, y: y)
-        } catch {
-            errorMessage = describe(error)
-            return nil
+    func textRun(atPage page: UInt16, x: Float, y: Float, completion: @escaping (TextRun?) -> Void) {
+        guard let data else { completion(nil); return }
+        ffiQueue.async {
+            let run = (try? textRunAtPoint(pdfBytes: data, page: page, x: x, y: y)) ?? nil
+            DispatchQueue.main.async { completion(run) }
         }
     }
 
-    /// The smallest already-scanned box (see `detectedBoxes`) enclosing a
-    /// point, if any — used both to highlight-on-hover and to resolve a
-    /// click/double-click into a specific box without another FFI round trip.
+    /// The smallest already-scanned field box enclosing a point, if any —
+    /// used to resolve a double-click into a specific box (snapping to a
+    /// detected field) without another FFI round trip. Falls through to a
+    /// fixed-size box in the caller when nothing here contains the point.
     func boxContaining(x: Float, y: Float) -> DetectedBox? {
         let tolerance: Float = 1.5
-        return detectedBoxes
+        return fieldOverlays
+            .map(\.box)
             .filter {
                 x >= $0.x - tolerance && x <= $0.x + $0.width + tolerance
                     && y >= $0.y - tolerance && y <= $0.y + $0.height + tolerance
@@ -294,11 +395,9 @@ final class PDFDocumentStore: ObservableObject {
             .min { $0.width * $0.height < $1.width * $1.height }
     }
 
-    /// The overlay (if any) whose box contains a point. Hit-tests
-    /// `fieldOverlays` directly rather than going through `boxContaining` —
-    /// a signature field synthesized straight from its `FormField` rect
-    /// (see `computeFieldOverlays`) has no entry in `detectedBoxes` at all,
-    /// so it would never resolve to a click otherwise.
+    /// The smallest overlay (if any) whose box contains a point — the single
+    /// hit-test the canvas uses to resolve a click into a field to fill or
+    /// sign, over the label-aware `fieldOverlays` list.
     func fieldOverlay(containingX x: Float, y: Float) -> FieldOverlayBox? {
         let tolerance: Float = 1.5
         return fieldOverlays
@@ -325,106 +424,108 @@ final class PDFDocumentStore: ObservableObject {
 
     // MARK: - Private
 
+    /// Reload the whole-document state (form-field and annotation lists, both
+    /// needed cross-page for the sign hop and counts) off the main thread,
+    /// then render the current page. Called on open and after every mutation.
     private func refreshAfterLoad() {
         guard let data else { return }
-        formFieldsList = (try? formFields(pdfBytes: data)) ?? []
-        annotationsList = (try? listAnnotations(pdfBytes: data)) ?? []
+        let token = docToken
+        ffiQueue.async {
+            let fields = (try? formFields(pdfBytes: data)) ?? []
+            let annos = (try? listAnnotations(pdfBytes: data)) ?? []
+            DispatchQueue.main.async {
+                guard token == self.docToken else { return }
+                self.formFieldsList = fields
+                self.annotationsList = annos
+            }
+        }
         renderCurrentPage()
     }
 
+    /// Render the current page and compute its fillable-field overlays off the
+    /// main thread, publishing both when ready. The DPI is read on the main
+    /// thread (it depends on the live viewport), but the rasterization and the
+    /// field scan — the heavy parts — run on `ffiQueue`. Overlays are cached
+    /// per page (they don't depend on zoom), so a resize re-renders the image
+    /// without re-scanning.
     private func renderCurrentPage() {
-        guard let document, let data else { return }
-        do {
-            let dpi = fitDPIForCurrentPage()
-            let png = try document.renderPage(index: pageIndex, dpi: UInt32(dpi))
-            let image = NSImage(data: png)
-            pageImage = image
-            if let image {
-                let ptsPerPixel = CGFloat(72.0 / dpi)
-                pagePointSize = CGSize(
-                    width: image.size.width * ptsPerPixel,
-                    height: image.size.height * ptsPerPixel
-                )
+        guard let data else { return }
+        let page = pageIndex
+        let viewport = viewportSize
+        let cachedSize = pageSizeCache[page]
+        let cachedOverlays = overlaysCache[page]
+        let fallback = fallbackDPI
+        renderToken += 1
+        let token = renderToken
+
+        ffiQueue.async {
+            // Fit-to-page DPI: read the page's point size (cached, or via a
+            // bytes-based FFI call on this same queue — never `PDFium` on the
+            // main thread) and fit it to the live viewport.
+            let size = cachedSize ?? (try? pageSize(pdfBytes: data, index: page))
+                .map { CGSize(width: CGFloat($0.width), height: CGFloat($0.height)) }
+            let dpi = Self.fitDPI(pageSize: size, viewport: viewport, fallback: fallback)
+
+            let png = try? renderPage(pdfBytes: data, index: page, dpi: UInt32(dpi))
+            let image = png.flatMap { NSImage(data: $0) }
+            let overlays: [FieldOverlayBox]
+            if let cachedOverlays {
+                overlays = cachedOverlays
+            } else {
+                let scanned = (try? fillableFields(pdfBytes: data, page: page)) ?? []
+                overlays = Self.overlays(from: scanned)
             }
-        } catch {
-            errorMessage = describe(error)
+            DispatchQueue.main.async {
+                guard token == self.renderToken else { return }
+                if let size { self.pageSizeCache[page] = size }
+                if let image {
+                    self.pageImage = image
+                    let ptsPerPixel = CGFloat(72.0 / dpi)
+                    self.pagePointSize = CGSize(
+                        width: image.size.width * ptsPerPixel,
+                        height: image.size.height * ptsPerPixel
+                    )
+                }
+                self.overlaysCache[page] = overlays
+                self.fieldOverlays = overlays
+            }
         }
-        // Box detection is by far the heaviest per-page FFI call, and its
-        // result is independent of zoom/DPI — so cache it and skip the rescan
-        // on pure resizes (the common case during a window drag).
-        if let cached = boxesCache[pageIndex] {
-            detectedBoxes = cached
-        } else {
-            let boxes = (try? boxesOnPage(pdfBytes: data, page: pageIndex)) ?? []
-            boxesCache[pageIndex] = boxes
-            detectedBoxes = boxes
-        }
-        fieldOverlays = computeFieldOverlays()
     }
 
-    /// Pair each scanned box with the named field (if any) whose widget rect
-    /// center falls inside it, so the canvas can tell a signature field from
-    /// an ordinary one (Core UX Principles: never a text caret for signing).
-    ///
-    /// `boxesOnPage`'s vector-graphics scan can miss a real `AcroForm` field
-    /// that has no closed/ruled box around it (e.g. a signature line that's
-    /// just an underline) — since `FormField` now carries its own rect, any
-    /// signature/initials field left unmatched still gets an overlay
-    /// synthesized directly from that rect, so signing is never silently
-    /// undiscoverable.
-    private func computeFieldOverlays() -> [FieldOverlayBox] {
-        let pageFields = formFieldsList.filter { $0.page == pageIndex }
-        var matchedFieldNames = Set<String>()
-
-        var overlays = detectedBoxes.map { box -> FieldOverlayBox in
-            let tolerance: Float = 2
-            let match = pageFields.first { field in
-                let cx = field.x + field.width / 2
-                let cy = field.y + field.height / 2
-                return cx >= box.x - tolerance && cx <= box.x + box.width + tolerance
-                    && cy >= box.y - tolerance && cy <= box.y + box.height + tolerance
-            }
-            if let match { matchedFieldNames.insert(match.name) }
-            return FieldOverlayBox(box: box, signatureKind: match?.signatureKind ?? .none, fieldName: match?.name)
-        }
-
-        let unmatchedSignatureFields = pageFields.filter { $0.signatureKind != .none && !matchedFieldNames.contains($0.name) }
-        overlays += unmatchedSignatureFields.map { field in
+    /// Map the engine's label-aware `FillableField`s into the canvas overlay
+    /// type. Pure and thread-agnostic, so it can run on `ffiQueue`.
+    private static func overlays(from fields: [FillableField]) -> [FieldOverlayBox] {
+        fields.map { field in
             FieldOverlayBox(
-                box: DetectedBox(page: pageIndex, x: field.x, y: field.y, width: field.width, height: field.height),
+                box: DetectedBox(
+                    page: field.page, x: field.x, y: field.y,
+                    width: field.width, height: field.height
+                ),
                 signatureKind: field.signatureKind,
-                fieldName: field.name
+                fieldName: field.fieldName,
+                label: field.label
             )
         }
-        return overlays
     }
 
-    /// The DPI that renders the current page as large as possible while
-    /// still fitting entirely inside `viewportSize` — the engine-shared
-    /// `fitToPageDpi` math (see `renderer::fit_to_page` in `pdfree-core`),
-    /// so this shell's default zoom matches every other platform's.
-    private func fitDPIForCurrentPage() -> Float {
-        guard viewportSize.width > 0, viewportSize.height > 0,
-              let size = cachedPageSize(pageIndex)
-        else { return fallbackDPI }
+    /// The DPI that renders a page as large as possible while still fitting
+    /// entirely inside `viewport` — the engine-shared `fitToPageDpi` math (see
+    /// `renderer::fit_to_page` in `pdfree-core`), so this shell's default zoom
+    /// matches every other platform's. Pure/thread-agnostic so it can run on
+    /// `ffiQueue`; falls back to `fallback` when the size or viewport is
+    /// unknown.
+    private static func fitDPI(pageSize size: CGSize?, viewport: CGSize, fallback: Float) -> Float {
+        guard let size, size.width > 0, size.height > 0,
+              viewport.width > 0, viewport.height > 0
+        else { return fallback }
 
         let dpi = fitToPageDpi(
             pageWidthPts: Float(size.width),
             pageHeightPts: Float(size.height),
-            viewportWidthPx: Float(viewportSize.width),
-            viewportHeightPx: Float(viewportSize.height)
+            viewportWidthPx: Float(viewport.width),
+            viewportHeightPx: Float(viewport.height)
         )
-        return dpi > 0 ? dpi : fallbackDPI
-    }
-
-    /// The page's point size, cached so a resize doesn't re-cross the FFI on
-    /// every intermediate drag size just to recompute fit-to-page DPI.
-    private func cachedPageSize(_ index: UInt16) -> CGSize? {
-        if let cached = pageSizeCache[index] { return cached }
-        guard let document, let size = try? document.pageSize(index: index) else { return nil }
-        let cgSize = CGSize(width: CGFloat(size.width), height: CGFloat(size.height))
-        pageSizeCache[index] = cgSize
-        return cgSize
+        return dpi > 0 ? dpi : fallback
     }
 
     /// Called by the canvas view on load and on every resize so the default
