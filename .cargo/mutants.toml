@@ -14,9 +14,19 @@
 # share of the mutants (and wall-clock time) for little added signal. Excluding
 # them keeps the sweep inside the runner's budget while still mutation-testing
 # the real logic in `pdfree-core`.
+#
+# `apps/desktop/src-tauri` is the same shape of exclusion for the same reason:
+# `commands.rs` is exclusively thin `#[tauri::command]` wrappers forwarding to
+# `pdfree-core` (already mutation-tested there), and `lib.rs::run()` is the
+# Tauri app's GUI bootstrap — it can only be exercised by actually launching
+# the desktop app under a real display, which no test in this workspace does
+# (or can, in CI). Left unexcluded, any diff that touches a line inside
+# `run()` (e.g. registering a new command) surfaces "replace run with ()" as
+# a permanently-unfixable missed mutant, unrelated to the actual change.
 exclude_globs = [
     "crates/pdfree-ffi/**",
     "crates/pdfree-wasm/**",
+    "apps/desktop/src-tauri/**",
 ]
 
 # The functions below are PDFium-coupled: they bind PDFium and iterate a
