@@ -237,7 +237,7 @@ struct InspectorView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
                 .background(Theme.Color.green, in: RoundedRectangle(cornerRadius: 11))
-                .shadow(color: Theme.Color.green.opacity(0.7), radius: 12, y: 6)
+                .shadow(color: Theme.Color.green.opacity(0.7), radius: 5, y: 2)
             }
             .buttonStyle(.plain)
             .disabled(!store.hasDocument)

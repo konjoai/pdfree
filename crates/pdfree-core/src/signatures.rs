@@ -144,8 +144,14 @@ const AUDIT_CAPTION_GAP: f32 = 2.0;
 /// page doesn't push its caption off the page entirely.
 const AUDIT_CAPTION_MIN_Y: f32 = 2.0;
 
-/// Same as [`place_signature`], but also stamps a small caption directly
-/// beneath the image recording who signed and when — see [`SignatureAudit`].
+/// Same as [`place_signature`], but also records who signed and when — see
+/// [`SignatureAudit`] — as an invisible text object directly beneath the
+/// image. "Invisible" is a real PDF text render mode (`Tr 3`, neither filled
+/// nor stroked): the audit line is never drawn on screen or in print, so it
+/// can't cover the page's own text the way a visible caption would, but the
+/// text itself is still a genuine part of the page's content stream —
+/// selectable, and extractable via [`crate::convert::to_text`] or any other
+/// text-extraction tool — for anyone who wants to inspect who signed.
 ///
 /// # Errors
 ///
@@ -193,13 +199,16 @@ pub fn place_signature_with_audit(
         Some(PdfPoints::new(fw)),
         Some(PdfPoints::new(fh)),
     )?;
-    page.objects_mut().create_text_object(
+    let mut caption_object = page.objects_mut().create_text_object(
         PdfPoints::new(fx),
         PdfPoints::new(caption_y),
         caption.as_str(),
         font,
         PdfPoints::new(AUDIT_CAPTION_FONT_SIZE),
     )?;
+    if let Some(text_object) = caption_object.as_text_object_mut() {
+        text_object.set_render_mode(PdfPageTextRenderMode::Invisible)?;
+    }
 
     Ok(document.save_to_bytes()?)
 }

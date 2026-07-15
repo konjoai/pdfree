@@ -13,7 +13,8 @@ uniffi::setup_scaffolding!();
 use std::sync::Arc;
 
 use pdfree_core::{
-    annotations, boxes, convert, editor, forms, pages, signatures, Document, RenderOptions,
+    annotations, boxes, convert, editor, forms, pages, pageview, signatures, Document,
+    RenderOptions,
 };
 
 /// A page's size in PDF points (72/inch).
@@ -734,6 +735,34 @@ pub fn boxes_on_page(pdf_bytes: Vec<u8>, page: u16) -> Result<Vec<DetectedBox>, 
         .into_iter()
         .map(Into::into)
         .collect())
+}
+
+/// A page's render plus its detected boxes, from a single bind + parse — see
+/// [`pageview`]'s module doc for why loading these separately (as `renderPage`
+/// and `boxesOnPage`, each independently binding `PDFium` and re-parsing the
+/// whole document) was the actual root cause of slow document open and slow
+/// page navigation.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct PageView {
+    pub png: Vec<u8>,
+    pub boxes: Vec<DetectedBox>,
+}
+
+impl From<pageview::PageView> for PageView {
+    fn from(v: pageview::PageView) -> Self {
+        Self {
+            png: v.png,
+            boxes: v.boxes.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+/// Render `page` and detect its fillable boxes together — the call a shell
+/// should make instead of separate `renderPage` + `boxesOnPage` calls when it
+/// needs both (document open, and every page navigation).
+#[uniffi::export]
+pub fn page_view(pdf_bytes: Vec<u8>, page: u16, dpi: f32) -> Result<PageView, PdfFreeError> {
+    Ok(pageview::page_view(&pdf_bytes, page, dpi)?.into())
 }
 
 // ---------------------------------------------------------------------------

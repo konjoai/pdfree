@@ -106,6 +106,20 @@ const CONTAINER_INNER_RATIO: f32 = 0.9;
 pub fn boxes_on_page(pdf_bytes: &[u8], page: u16) -> Result<Vec<DetectedBox>> {
     let pdfium = crate::pdfium::bind()?;
     let document = pdfium.load_pdf_from_byte_slice(pdf_bytes, None)?;
+    boxes_on_loaded_page(&document, page)
+}
+
+/// Same as [`boxes_on_page`], but works from an already-bound `PDFium`
+/// document rather than binding and re-parsing `pdf_bytes` itself. Exists so
+/// [`crate::pageview`] can gather a rendered page *and* its detected boxes
+/// from a single bind + parse — `boxes_on_page`'s own from-scratch bind is by
+/// far the heaviest per-page `pdfree-core` call, and re-paying it separately
+/// for every page render was the actual root cause of "page navigation is
+/// slow" and "even a 1-page PDF is slow to open". This must only ever be
+/// called with a `document` from a bind that hasn't been reused across a
+/// *different* prior document load — see `crate::pdfium::bind`'s docs on why
+/// a single `PDFium` binding can't safely be cached and reused that way.
+pub(crate) fn boxes_on_loaded_page(document: &PdfDocument, page: u16) -> Result<Vec<DetectedBox>> {
     let count = document.pages().len();
     if page >= count {
         return Err(PdfError::PageOutOfRange { index: page, count });
@@ -119,8 +133,37 @@ pub fn boxes_on_page(pdf_bytes: &[u8], page: u16) -> Result<Vec<DetectedBox>> {
     let mut h_segments: Vec<(f32, f32, f32)> = Vec::new();
     let mut v_segments: Vec<(f32, f32, f32)> = Vec::new();
     let mut rect_paths: Vec<PdfRect> = Vec::new();
+    // Bounds of every image (logo, seal, photo, embedded signature) and text
+    // run on the page — used to reject a speculative Tier 3/4 candidate that
+    // actually already has content sitting in it (see `region_has_content`).
+    // A real fillable blank is empty; a rectangle drawn around a logo, or a
+    // line with a name/signature already printed above it, is not a field
+    // regardless of how well it matches the geometric shape of one.
+    let mut image_rects: Vec<PdfRect> = Vec::new();
+    let mut text_rects: Vec<PdfRect> = Vec::new();
 
     for object in loaded.objects().iter() {
+        if let Some(image) = object.as_image_object() {
+            // A scanned page is commonly one giant background image behind
+            // everything else — that's a page backdrop, not a logo/photo
+            // overlapping one specific field, and would otherwise flag
+            // *every* box on the page as "occupied". Same
+            // page-area-fraction cutoff `push_if_new` already uses to drop
+            // page borders/backgrounds from box candidates.
+            if let Ok(bounds) = image.bounds() {
+                let rect = bounds.to_rect();
+                if rect.width().value * rect.height().value <= max_area {
+                    image_rects.push(rect);
+                }
+            }
+            continue;
+        }
+        if let Some(text) = object.as_text_object() {
+            if let Ok(bounds) = text.bounds() {
+                text_rects.push(bounds.to_rect());
+            }
+            continue;
+        }
         let Some(path) = object.as_path_object() else {
             continue;
         };
@@ -334,7 +377,27 @@ pub fn boxes_on_page(pdf_bytes: &[u8], page: u16) -> Result<Vec<DetectedBox>> {
         }
     }
 
-    Ok(prefer_inner_fields(boxes, underline_start))
+    // Reject any candidate — from any tier above, closed cell included, since
+    // a lone rectangle's own 4 edges satisfy the Tier 1 closed-cell pattern
+    // just as well as a real table cell's — that already has an image or a
+    // meaningful amount of text sitting inside it. A real fillable blank is
+    // empty; a rectangle framing a logo/seal/photo, or a line with a value
+    // already printed above it, is not a field regardless of which
+    // structural pattern detected it: "when in doubt, don't highlight it."
+    let is_occupied = |b: &DetectedBox| {
+        region_has_content(&image_rects, &text_rects, b.x, b.y, b.width, b.height)
+    };
+    // `underline_start` indexes into the *pre-filter* `boxes`; removing
+    // occupied entries ahead of it would shift every later index, so it's
+    // recomputed here as "how many pre-underline entries survive" rather than
+    // reused as-is.
+    let new_underline_start = boxes[..underline_start]
+        .iter()
+        .filter(|b| !is_occupied(b))
+        .count();
+    let boxes: Vec<DetectedBox> = boxes.into_iter().filter(|b| !is_occupied(b)).collect();
+
+    Ok(prefer_inner_fields(boxes, new_underline_start))
 }
 
 /// Drop any box that acts as a *container* for real fields rather than being
@@ -552,6 +615,46 @@ fn push_if_new(
         return;
     }
     boxes.push(candidate);
+}
+
+/// Whether an image or text run already occupies a meaningful portion of
+/// `(x, y, width, height)` — i.e. this candidate field isn't actually blank.
+/// A sliver of overlap (a descender poking into the box, a line's own
+/// stroke) shouldn't disqualify a real field, so this requires the overlap
+/// to cover a real fraction of *whichever is smaller* — the candidate or the
+/// content — not just touch it. Dividing by the candidate's area alone would
+/// miss a small "Jane Doe" sitting on a wide underline (it can easily cover
+/// under 15% of a whole wide field while still very obviously being the
+/// field's already-written answer); dividing by the content's area alone
+/// instead correctly reads that case as "this text is basically entirely
+/// inside the field" regardless of how wide the field itself is.
+fn region_has_content(
+    images: &[PdfRect],
+    texts: &[PdfRect],
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+) -> bool {
+    const OCCUPIED_RATIO: f32 = 0.15;
+    let area = width * height;
+    if area <= 0.0 {
+        return false;
+    }
+    let overlaps = |r: &PdfRect| -> bool {
+        let x_overlap = (r.right().value).min(x + width) - (r.left().value).max(x);
+        let y_overlap = (r.top().value).min(y + height) - (r.bottom().value).max(y);
+        if x_overlap <= 0.0 || y_overlap <= 0.0 {
+            return false;
+        }
+        let content_area = r.width().value * r.height().value;
+        let smaller = area.min(content_area);
+        if smaller <= 0.0 {
+            return false;
+        }
+        (x_overlap * y_overlap) / smaller >= OCCUPIED_RATIO
+    };
+    images.iter().any(overlaps) || texts.iter().any(overlaps)
 }
 
 fn overlap_ratio(a: &DetectedBox, b: &DetectedBox) -> f32 {

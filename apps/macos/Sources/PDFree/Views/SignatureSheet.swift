@@ -24,8 +24,13 @@ struct SignatureSheet: View {
     @State private var typedName: String = ""
     @State private var uploadedImage: NSImage?
     @State private var saveForReuse = true
-
-    private let canvasSize = CGSize(width: 300, height: 110)
+    /// The draw pad's actual on-screen size, measured live via
+    /// `GeometryReader` — strokes are recorded in this view's own coordinate
+    /// space, so the exported render must use these exact dimensions (not a
+    /// guessed fallback) or anything drawn near the true edges gets clipped
+    /// out of a too-small export canvas. Falls back to a sane default before
+    /// the first layout pass reports a real size.
+    @State private var drawCanvasSize = CGSize(width: 300, height: 110)
 
     private var title: String {
         kind == .initials ? "Add your initials" : "Add your signature"
@@ -125,6 +130,13 @@ struct SignatureSheet: View {
         .frame(height: 150)
         .clipShape(RoundedRectangle(cornerRadius: 11))
         .gesture(drawGesture)
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { drawCanvasSize = geo.size }
+                    .onChange(of: geo.size) { drawCanvasSize = $0 }
+            }
+        )
     }
 
     private var signatureCanvas: some View {
@@ -241,8 +253,14 @@ struct SignatureSheet: View {
     private func renderPNG() -> Data? {
         switch tab {
         case .draw:
+            // Matches `drawPad`'s actual measured size exactly — using a
+            // smaller, guessed frame here would silently clip any stroke
+            // drawn near the real canvas's edges. No `.background()`: the
+            // signature is stamped over the document, so it must render
+            // with a transparent backdrop, not an opaque white rectangle
+            // that would cover whatever text sits underneath it.
             let renderer = ImageRenderer(
-                content: signatureCanvas.frame(width: canvasSize.width, height: canvasSize.height).background(Color.white)
+                content: signatureCanvas.frame(width: drawCanvasSize.width, height: drawCanvasSize.height)
             )
             renderer.scale = 2
             return renderer.nsImage.flatMap(pngData)
@@ -252,7 +270,6 @@ struct SignatureSheet: View {
                     .font(Theme.Font.cursive(48))
                     .foregroundStyle(Theme.Color.signatureInk)
                     .padding(16)
-                    .background(Color.white)
             )
             renderer.scale = 2
             return renderer.nsImage.flatMap(pngData)

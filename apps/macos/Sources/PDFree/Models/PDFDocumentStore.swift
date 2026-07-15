@@ -334,32 +334,51 @@ final class PDFDocumentStore: ObservableObject {
 
     private func renderCurrentPage() {
         guard let document, let data else { return }
+        // `PdfDocument.renderPage` only takes an integer DPI, but
+        // `fitDPIForCurrentPage()` returns a fractional one — rounding once,
+        // up front, and reusing that *exact* rounded value for both the
+        // render call and `applyRenderedImage`'s pixel-to-point math is what
+        // keeps field overlays aligned with the image actually on screen.
+        // Previously the render call truncated the fractional DPI (via
+        // `UInt32(dpi)`) while the overlay math kept the untruncated value,
+        // so the two silently drifted apart — the actual cause of overlays
+        // rendering slightly off from the boxes/fields they're highlighting.
+        let dpi = (fitDPIForCurrentPage()).rounded()
+        // Box detection is by far the heaviest per-page FFI call, and its
+        // result is independent of zoom/DPI — so cache it and skip the
+        // rescan on pure resizes (the common case during a window drag).
+        // On a cache miss (first visit to this page), `pageView` renders
+        // *and* scans boxes from a single bind + parse instead of two
+        // separate ones (`renderPage` + `boxesOnPage`, each independently
+        // binding PDFium and re-parsing the whole document from scratch) —
+        // this is what made even a 1-page PDF slow to open and page
+        // navigation slow to respond.
         do {
-            let dpi = fitDPIForCurrentPage()
-            let png = try document.renderPage(index: pageIndex, dpi: UInt32(dpi))
-            let image = NSImage(data: png)
-            pageImage = image
-            if let image {
-                let ptsPerPixel = CGFloat(72.0 / dpi)
-                pagePointSize = CGSize(
-                    width: image.size.width * ptsPerPixel,
-                    height: image.size.height * ptsPerPixel
-                )
+            if let cached = boxesCache[pageIndex] {
+                let png = try document.renderPage(index: pageIndex, dpi: UInt32(dpi))
+                applyRenderedImage(png, dpi: dpi)
+                detectedBoxes = cached
+            } else {
+                let view = try pageView(pdfBytes: data, page: pageIndex, dpi: dpi)
+                applyRenderedImage(view.png, dpi: dpi)
+                boxesCache[pageIndex] = view.boxes
+                detectedBoxes = view.boxes
             }
         } catch {
             errorMessage = describe(error)
         }
-        // Box detection is by far the heaviest per-page FFI call, and its
-        // result is independent of zoom/DPI — so cache it and skip the rescan
-        // on pure resizes (the common case during a window drag).
-        if let cached = boxesCache[pageIndex] {
-            detectedBoxes = cached
-        } else {
-            let boxes = (try? boxesOnPage(pdfBytes: data, page: pageIndex)) ?? []
-            boxesCache[pageIndex] = boxes
-            detectedBoxes = boxes
-        }
         fieldOverlays = computeFieldOverlays()
+    }
+
+    private func applyRenderedImage(_ png: Data, dpi: Float) {
+        let image = NSImage(data: png)
+        pageImage = image
+        guard let image else { return }
+        let ptsPerPixel = CGFloat(72.0 / dpi)
+        pagePointSize = CGSize(
+            width: image.size.width * ptsPerPixel,
+            height: image.size.height * ptsPerPixel
+        )
     }
 
     /// Pair each scanned box with the named field (if any) whose widget rect

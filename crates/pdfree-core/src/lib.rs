@@ -37,6 +37,7 @@ pub mod editor;
 pub mod error;
 pub mod forms;
 pub mod pages;
+pub mod pageview;
 pub mod pdfium;
 pub mod renderer;
 pub mod search;

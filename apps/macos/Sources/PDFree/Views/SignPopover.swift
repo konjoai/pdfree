@@ -31,7 +31,12 @@ struct SignPopover: View {
             }
         }
         .padding(20)
-        .frame(width: 300)
+        // Wide enough for 3 92pt chips (9pt gaps) plus real breathing room on
+        // both sides — at the old 300pt width, minus the 20pt padding on
+        // each side, there wasn't even enough room to fit the chips
+        // themselves (3×92 + 2×9 = 294pt needed vs. 260pt available), let
+        // alone any margin, so they rendered cramped and nearly clipped.
+        .frame(width: 360)
         .background(Theme.Color.popoverBg)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1)))
