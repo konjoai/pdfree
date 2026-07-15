@@ -125,3 +125,22 @@ export interface FieldOverlay {
   signatureKind: SignatureFieldKind;
   fieldName: string | null;
 }
+
+export type FieldSource = "AcroForm" | "Detected";
+
+/** The accurate, label-aware fillable-field list — every AcroForm widget
+ * plus every detected box/line with a human-readable label next to it.
+ * Mirrors `pdfree_core::fields::FillableField`; produced by
+ * `engine.fillableFields()`, which replaces separately calling
+ * `boxesOnPage`/`formFields` and merging them by hand. */
+export interface FillableField {
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  label: string | null;
+  fieldName: string | null;
+  signatureKind: SignatureFieldKind;
+  source: FieldSource;
+}

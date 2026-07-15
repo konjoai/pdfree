@@ -19,6 +19,7 @@ import type {
   AnnotationInfo,
   DetectedBox,
   FieldFill,
+  FillableField,
   FormField,
   PageRange,
   PageSize,
@@ -227,6 +228,14 @@ export function boxAtPoint(pdfBytes: Uint8Array, page: number, x: number, y: num
 export async function boxesOnPage(pdfBytes: Uint8Array, page: number): Promise<DetectedBox[]> {
   if (isTauri()) return invoke<DetectedBox[]>("boxes_on_page", { pdfBytes: Array.from(pdfBytes), page });
   return wasm.boxesOnPage(pdfBytes, page) as DetectedBox[];
+}
+
+/** The accurate, label-aware replacement for scanning `boxesOnPage` and
+ * `formFields` separately and merging them by hand — see `../types`'s
+ * `FillableField` doc comment. */
+export async function fillableFields(pdfBytes: Uint8Array, page: number): Promise<FillableField[]> {
+  if (isTauri()) return invoke<FillableField[]>("fillable_fields", { pdfBytes: Array.from(pdfBytes), page });
+  return wasm.fillableFields(pdfBytes, page) as FillableField[];
 }
 
 /** A handful of engine functions aren't wired up as Tauri commands yet

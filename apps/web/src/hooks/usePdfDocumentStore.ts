@@ -9,7 +9,7 @@
 // know or care which backend is actually running.
 import { useCallback, useMemo, useRef, useState } from "react";
 import * as engine from "../lib/engine";
-import type { DetectedBox, FieldOverlay, FormField, PageSize } from "../types";
+import type { FieldOverlay, FillableField, FormField, PageSize } from "../types";
 
 export interface PdfDocumentState {
   hasDocument: boolean;
@@ -21,7 +21,6 @@ export interface PdfDocumentState {
   pageImageUrl: string | null;
   pagePointSize: PageSize;
   formFieldsList: FormField[];
-  detectedBoxes: DetectedBox[];
   fieldOverlays: FieldOverlay[];
   errorMessage: string | null;
   isBusy: boolean;
@@ -37,7 +36,6 @@ const EMPTY_STATE: PdfDocumentState = {
   pageImageUrl: null,
   pagePointSize: { width: 0, height: 0 },
   formFieldsList: [],
-  detectedBoxes: [],
   fieldOverlays: [],
   errorMessage: null,
   isBusy: false,
@@ -45,50 +43,16 @@ const EMPTY_STATE: PdfDocumentState = {
 
 const FALLBACK_DPI = 150;
 
-function computeFieldOverlays(
-  pageIndex: number,
-  detectedBoxes: DetectedBox[],
-  formFieldsList: FormField[],
-): FieldOverlay[] {
-  const pageFields = formFieldsList.filter((f) => f.page === pageIndex);
-  const matched = new Set<string>();
-  const tolerance = 2;
-
-  const overlays: FieldOverlay[] = detectedBoxes.map((box) => {
-    const match = pageFields.find((field) => {
-      const cx = field.x + field.width / 2;
-      const cy = field.y + field.height / 2;
-      return (
-        cx >= box.x - tolerance &&
-        cx <= box.x + box.width + tolerance &&
-        cy >= box.y - tolerance &&
-        cy <= box.y + box.height + tolerance
-      );
-    });
-    if (match) matched.add(match.name);
-    return {
-      box,
-      signatureKind: match?.signatureKind ?? "None",
-      fieldName: match?.name ?? null,
-    };
-  });
-
-  // Signature/initials fields the vector scan didn't find a drawn box for
-  // still get an overlay synthesized from their own rect — a real
-  // signature field must never be silently undiscoverable (Core UX
-  // Principles: signature fields are always special-cased).
-  const unmatchedSignatureFields = pageFields.filter(
-    (f) => f.signatureKind !== "None" && !matched.has(f.name),
-  );
-  for (const field of unmatchedSignatureFields) {
-    overlays.push({
-      box: { page: pageIndex, x: field.x, y: field.y, width: field.width, height: field.height },
-      signatureKind: field.signatureKind,
-      fieldName: field.name,
-    });
-  }
-
-  return overlays;
+/** `engine.fillableFields()` already does the label-aware AcroForm/detected-
+ * box merge (and the signature-field-with-no-drawn-box fallback) in one
+ * PDFium parse — this just reshapes its flat geometry into the `FieldOverlay`
+ * shape `PageCanvas` renders. */
+function toFieldOverlays(fields: FillableField[]): FieldOverlay[] {
+  return fields.map((f) => ({
+    box: { page: f.page, x: f.x, y: f.y, width: f.width, height: f.height },
+    signatureKind: f.signatureKind,
+    fieldName: f.fieldName,
+  }));
 }
 
 export function usePdfDocumentStore() {
@@ -119,7 +83,7 @@ export function usePdfDocumentStore() {
     }
 
     let pageImageUrl: string | null = null;
-    let detectedBoxes: DetectedBox[] = [];
+    let fieldOverlays: FieldOverlay[] = [];
     try {
       const png = await doc.renderPage(pageIndex, dpi);
       const blob = new Blob([png as unknown as BlobPart], { type: "image/png" });
@@ -130,9 +94,9 @@ export function usePdfDocumentStore() {
       }
     }
     try {
-      detectedBoxes = await engine.boxesOnPage(data, pageIndex);
+      fieldOverlays = toFieldOverlays(await engine.fillableFields(data, pageIndex));
     } catch {
-      detectedBoxes = [];
+      fieldOverlays = [];
     }
 
     if (token !== renderTokenRef.current) {
@@ -143,9 +107,8 @@ export function usePdfDocumentStore() {
     }
 
     setState((s) => {
-      const fieldOverlays = computeFieldOverlays(pageIndex, detectedBoxes, s.formFieldsList);
       if (s.pageImageUrl) URL.revokeObjectURL(s.pageImageUrl);
-      return { ...s, pageImageUrl, pagePointSize, detectedBoxes, fieldOverlays };
+      return { ...s, pageImageUrl, pagePointSize, fieldOverlays };
     });
   }, []);
 
