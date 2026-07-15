@@ -295,6 +295,113 @@ fn irs_1040_still_scans_without_regression() {
     }
 }
 
+/// A one-page PDF with a stroked rectangle framing a small solid-fill image
+/// well inside its bounds — standing in for a logo/seal graphic bordered by
+/// a decorative rectangle. Built in its own function (matching
+/// `pdf_with_rect`/`pdf_with_ruled_grid`/`pdf_with_underline` above) so its
+/// own `pdfium::bind()` fully drops before the test calls `boxes_on_page`,
+/// which binds again — two live bindings in one process is a confirmed hang
+/// (see `pages.rs`'s "never call `bind()` twice within one call chain" note).
+fn pdf_with_rect_framing_an_image(rect: PdfRect) -> Vec<u8> {
+    let pdfium = pdfree_core::pdfium::bind().expect("bind pdfium");
+    let mut document = pdfium.create_new_pdf().expect("create pdf");
+    let mut page = document
+        .pages_mut()
+        .create_page_at_start(PdfPagePaperSize::Custom(
+            PdfPoints::new(612.0),
+            PdfPoints::new(792.0),
+        ))
+        .expect("create page");
+    page.objects_mut()
+        .create_path_object_rect(rect, Some(PdfColor::BLACK), Some(PdfPoints::new(1.0)), None)
+        .expect("create rect");
+    let image = image::RgbImage::from_pixel(40, 40, image::Rgb([10, 10, 10])).into();
+    page.objects_mut()
+        .create_image_object(
+            PdfPoints::new(140.0),
+            PdfPoints::new(260.0),
+            &image,
+            Some(PdfPoints::new(80.0)),
+            Some(PdfPoints::new(80.0)),
+        )
+        .expect("create image");
+    document.save_to_bytes().expect("save")
+}
+
+#[test]
+fn rejects_a_lone_rectangle_that_already_contains_an_image() {
+    skip_without_pdfium!();
+
+    // A logo/seal is commonly framed by a stroked rectangle border — that
+    // border shouldn't be offered as a fillable field just because it's a
+    // lone rectangle in the right size range (Tier 3).
+    let rect = PdfRect::new(
+        PdfPoints::new(200.0),
+        PdfPoints::new(100.0),
+        PdfPoints::new(400.0),
+        PdfPoints::new(260.0),
+    );
+    let bytes = pdf_with_rect_framing_an_image(rect);
+
+    let found = boxes_on_page(&bytes, 0).expect("boxes_on_page");
+    assert!(
+        found.is_empty(),
+        "a rectangle framing an image shouldn't be treated as fillable: {found:?}"
+    );
+}
+
+/// A one-page PDF with a bare underline and a name already printed in the
+/// gap above it — see `pdf_with_rect_framing_an_image` above for why this is
+/// its own function rather than inlined in the test.
+fn pdf_with_underline_and_printed_value() -> Vec<u8> {
+    let pdfium = pdfree_core::pdfium::bind().expect("bind pdfium");
+    let mut document = pdfium.create_new_pdf().expect("create pdf");
+    let mut page = document
+        .pages_mut()
+        .create_page_at_start(PdfPagePaperSize::Custom(
+            PdfPoints::new(612.0),
+            PdfPoints::new(792.0),
+        ))
+        .expect("create page");
+    page.objects_mut()
+        .create_path_object_line(
+            PdfPoints::new(100.0),
+            PdfPoints::new(300.0),
+            PdfPoints::new(400.0),
+            PdfPoints::new(300.0),
+            PdfColor::BLACK,
+            PdfPoints::new(1.0),
+        )
+        .expect("underline");
+    let font = document.fonts_mut().helvetica();
+    page.objects_mut()
+        .create_text_object(
+            PdfPoints::new(110.0),
+            PdfPoints::new(304.0),
+            "Jane Doe",
+            font,
+            PdfPoints::new(12.0),
+        )
+        .expect("create text");
+    document.save_to_bytes().expect("save")
+}
+
+#[test]
+fn rejects_an_underline_with_a_value_already_printed_above_it() {
+    skip_without_pdfium!();
+
+    // Same shape as `detects_a_fill_in_underline_with_no_box_around_it`, but
+    // with a name already printed in the gap above the line — this blank has
+    // already been filled in, so it shouldn't be re-offered as fillable.
+    let bytes = pdf_with_underline_and_printed_value();
+
+    let found = boxes_on_page(&bytes, 0).expect("boxes_on_page");
+    assert!(
+        found.is_empty(),
+        "an underline with a value already written above it shouldn't be treated as fillable: {found:?}"
+    );
+}
+
 #[test]
 fn rejects_an_out_of_range_page() {
     skip_without_pdfium!();

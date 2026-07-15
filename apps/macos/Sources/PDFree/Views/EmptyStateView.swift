@@ -19,12 +19,15 @@ struct EmptyStateView: View {
             )
 
             VStack(spacing: 24) {
-                Wordmark(size: .large)
-
-                VStack(spacing: 14) {
+                // Green paper mark above the pd·free wordmark, centered in the
+                // whole window as the branding hero.
+                VStack(spacing: 16) {
                     AppMark(style: .document, size: 52)
                         .shadow(color: Theme.Color.greenDark.opacity(0.5), radius: 14, y: 8)
+                    Wordmark(size: .large)
+                }
 
+                VStack(spacing: 14) {
                     Text("Drop a PDF or image to start")
                         .font(.system(size: 19, weight: .bold))
                         .foregroundStyle(Theme.Color.textHigh)

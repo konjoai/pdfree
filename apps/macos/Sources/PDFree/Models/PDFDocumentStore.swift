@@ -461,10 +461,16 @@ final class PDFDocumentStore: ObservableObject {
         ffiQueue.async {
             // Fit-to-page DPI: read the page's point size (cached, or via a
             // bytes-based FFI call on this same queue — never `PDFium` on the
-            // main thread) and fit it to the live viewport.
+            // main thread) and fit it to the live viewport. Rounded once,
+            // up front, and reused for both the render call (which only
+            // takes an integer DPI) and the pixel-to-point math below —
+            // previously the render call truncated the fractional DPI via
+            // `UInt32(dpi)` while the point-size math kept the untruncated
+            // value, so the two silently drifted apart and field overlays
+            // rendered slightly offset from the boxes/fields they highlight.
             let size = cachedSize ?? (try? pageSize(pdfBytes: data, index: page))
                 .map { CGSize(width: CGFloat($0.width), height: CGFloat($0.height)) }
-            let dpi = Self.fitDPI(pageSize: size, viewport: viewport, fallback: fallback)
+            let dpi = Self.fitDPI(pageSize: size, viewport: viewport, fallback: fallback).rounded()
 
             let png = try? renderPage(pdfBytes: data, index: page, dpi: UInt32(dpi))
             let image = png.flatMap { NSImage(data: $0) }

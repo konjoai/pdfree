@@ -60,6 +60,17 @@ struct ContentView: View {
     /// "done" popover has somewhere to stay pinned once `currentField`
     /// becomes nil (everything placed).
     @State private var lastSignAnchorField: FormField?
+    /// True for a couple of seconds right after a signature is placed — the
+    /// user should see their freshly placed mark clearly, with no "Sign
+    /// here" box or popover in the way, before the session hops to the next
+    /// field. Cleared by `commitPlacement`'s delayed advance.
+    @State private var isPausingAfterPlacement = false
+    /// Names of signature/initials fields whose "Sign here" affordance
+    /// should stay hidden — set the instant a placement commits (so it
+    /// disappears immediately, not just once the session formally advances
+    /// past it) and cleared once the delayed advance folds it into
+    /// `signSession.completedNames`.
+    @State private var justSignedFieldNames: Set<String> = []
 
     /// Fallback box size (PDF points) when double-clicking finds no drawn
     /// rectangle or ruled-line cell to snap to.
@@ -96,7 +107,8 @@ struct ContentView: View {
         .frame(minWidth: 900, minHeight: 640)
         .background(Theme.Color.panelBg)
         .preferredColorScheme(.dark)
-        .onChange(of: store.pageIndex) { _ in cancelInlineEdit() }
+        .onChange(of: store.pageIndex) { _ in commitInlineEdit() }
+        .onChange(of: tool) { _ in commitInlineEdit() }
         .sheet(item: $activeSheet) { sheet in sheetView(for: sheet) }
         .alert("Error", isPresented: errorBinding) {
             Button("OK", role: .cancel) {}
@@ -128,15 +140,13 @@ struct ContentView: View {
             }
 
             HStack {
-                // Leading offset clears the window's traffic-light buttons
-                // (the title bar is hidden, so they float over this bar).
-                Wordmark(size: .small)
-                    .padding(.leading, 78)
                 Spacer()
-                // Green document mark in the upper-right, above the inspector's
-                // "Add or merge" button.
-                AppMark(style: .document, size: 22)
-                    .padding(.trailing, 16)
+                // Text wordmark only, centered over the inspector (tools)
+                // column on the right — the document mark icon already
+                // carries the branding on the empty-state hero, so repeating
+                // it here would just be duplicate chrome.
+                Wordmark(size: .small)
+                    .frame(width: Theme.Metric.inspectorWidth)
             }
         }
         .frame(height: Theme.Metric.titlebarHeight)
@@ -161,7 +171,7 @@ struct ContentView: View {
                             image: image,
                             pagePointSize: store.pagePointSize,
                             tool: tool,
-                            fieldOverlays: store.fieldOverlays,
+                            fieldOverlays: visibleFieldOverlays,
                             onTap: handleTap,
                             onDrag: handleDrag,
                             onDoubleTap: handleDoubleTap,
@@ -282,10 +292,20 @@ struct ContentView: View {
             if let overlay = store.fieldOverlay(containingX: Float(point.x), y: Float(point.y)) {
                 if overlay.isSignature {
                     beginSigningOverlay(overlay)
+                } else if isEditing(overlay.box) {
+                    // Same field already open (e.g. a click to reposition
+                    // the caret) — leave the in-progress text alone rather
+                    // than wiping it out from under the user.
                 } else {
+                    commitInlineEdit()
                     inlineEditText = ""
                     inlineEditBox = overlay.box
                 }
+            } else {
+                // Clicked blank canvas while a field was open: save it
+                // (Core UX Principles-adjacent — typed text should never be
+                // lost to a click, only an explicit Escape cancels it).
+                commitInlineEdit()
             }
         case .sign:
             if let overlay = store.fieldOverlay(containingX: Float(point.x), y: Float(point.y)),
@@ -299,7 +319,9 @@ struct ContentView: View {
         case .overlayText:
             // Manual text box: drop an inline, WYSIWYG-fit editable field
             // right where the user clicked (same mechanism as the box-fill
-            // inline editor), rather than a modal prompt.
+            // inline editor), rather than a modal prompt. Save whatever was
+            // in a previously open box first (a no-op if it was left empty).
+            commitInlineEdit()
             inlineEditText = ""
             inlineEditBox = DetectedBox(
                 page: store.pageIndex,
@@ -323,6 +345,14 @@ struct ContentView: View {
 
     private func matchingField(_ overlay: FieldOverlayBox) -> FormField? {
         store.formFieldsList.first { $0.name == overlay.fieldName }
+    }
+
+    /// Whether `box` is the field currently open in the inline editor —
+    /// used so a click that lands back on the field already being typed
+    /// into doesn't reset its text.
+    private func isEditing(_ box: DetectedBox) -> Bool {
+        guard let inlineEditBox else { return false }
+        return inlineEditBox.page == box.page && inlineEditBox.x == box.x && inlineEditBox.y == box.y
     }
 
     private func handleDrag(_ start: CGPoint, _ end: CGPoint) {
@@ -361,6 +391,8 @@ struct ContentView: View {
                 width: Float(Self.defaultBoxSize.width),
                 height: Float(Self.defaultBoxSize.height)
             )
+        if isEditing(box) { return }
+        commitInlineEdit()
         inlineEditText = ""
         inlineEditBox = box
     }
@@ -377,7 +409,8 @@ struct ContentView: View {
         )
         let text = inlineEditText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        store.applyOverlay(TextOverlay(page: box.page, x: box.x, y: box.y, text: text, fontSize: Float(fontSize)))
+        let baselineY = CGFloat(box.y) + TextFit.baselineLift(fontSize: fontSize, boxHeightPts: CGFloat(box.height))
+        store.applyOverlay(TextOverlay(page: box.page, x: box.x, y: Float(baselineY), text: text, fontSize: Float(fontSize)))
     }
 
     private func cancelInlineEdit() {
@@ -435,7 +468,22 @@ struct ContentView: View {
         activeSheet = hasSavedMark(for: field) ? nil : .signatureField(field, .draw)
     }
 
+    /// `store.fieldOverlays` minus any signature/initials field already
+    /// placed (in the current sign session, or in the last couple of
+    /// seconds right after placement) — once a field's mark is down, its
+    /// amber "Sign here" affordance should disappear rather than keep
+    /// looking like it's still waiting to be signed.
+    private var visibleFieldOverlays: [FieldOverlayBox] {
+        let hidden = justSignedFieldNames.union(signSession?.completedNames ?? [])
+        guard !hidden.isEmpty else { return store.fieldOverlays }
+        return store.fieldOverlays.filter { overlay in
+            guard let name = overlay.fieldName else { return true }
+            return !hidden.contains(name)
+        }
+    }
+
     private var signAnchorBox: DetectedBox? {
+        if isPausingAfterPlacement { return nil }
         guard let session = signSession else { return nil }
         let field = session.done ? lastSignAnchorField : session.currentField
         guard let field else { return nil }
@@ -446,6 +494,7 @@ struct ContentView: View {
     }
 
     private var signOverlayView: AnyView? {
+        if isPausingAfterPlacement { return nil }
         guard let session = signSession else { return nil }
         if session.done {
             return AnyView(
@@ -479,17 +528,33 @@ struct ContentView: View {
         tool = .select
     }
 
+    /// How long a freshly placed signature stays visible, with no "Sign
+    /// here" box or popover over it, before the session hops to the next
+    /// field — long enough to actually register what was just signed
+    /// rather than an instant jump.
+    private static let signPlacementPause: TimeInterval = 2.0
+
     private func commitPlacement(pngData: Data, for field: FormField, saveForReuse: Bool) {
         let placement = SignaturePlacement(page: field.page, x: field.x, y: field.y, width: field.width, height: field.height)
         store.applySignature(pngData: pngData, at: placement)
         if saveForReuse {
             store.saveSignature(pngData: pngData, kind: signatureKind(for: field))
         }
-        guard var session = signSession else { return }
-        session.completedNames.insert(field.name)
-        signSession = session
         activeSheet = nil
-        if !session.done { presentCurrentSignStep() }
+        // Hide this field's "Sign here" affordance immediately, but hold off
+        // on advancing `signSession` (which is what moves the popover/anchor
+        // to the next field) for a couple of seconds, so the user actually
+        // sees their signature land before anything moves.
+        justSignedFieldNames.insert(field.name)
+        isPausingAfterPlacement = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.signPlacementPause) {
+            isPausingAfterPlacement = false
+            justSignedFieldNames.remove(field.name)
+            guard var session = signSession else { return }
+            session.completedNames.insert(field.name)
+            signSession = session
+            if !session.done { presentCurrentSignStep() }
+        }
     }
 
     // MARK: - Sheets
@@ -592,6 +657,8 @@ struct ContentView: View {
         if panel.runModal() == .OK, let url = panel.url, let data = try? Data(contentsOf: url) {
             cancelInlineEdit()
             signSession = nil
+            isPausingAfterPlacement = false
+            justSignedFieldNames.removeAll()
             store.openReplacing(data: data, url: url)
             tool = .select
         }

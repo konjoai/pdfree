@@ -34,4 +34,17 @@ enum TextFit {
         let scale = available / measuredWidth
         return max(minFontSize, heightBound * scale)
     }
+
+    /// `overlay_text` stamps at `(x, y)` as the text's *baseline* origin, not
+    /// the bottom of its glyph bounding box — so stamping straight at a
+    /// box's own bottom edge (as detected boxes and underline affordances
+    /// both use as their `y`) leaves descenders, and often the whole
+    /// baseline stroke, sitting on or below that edge instead of resting
+    /// above it with any breathing room. This nudges the baseline up by a
+    /// small fraction of the font size — enough to clear a typical
+    /// descender — clamped so it can never push the baseline above the top
+    /// of a short box.
+    static func baselineLift(fontSize: CGFloat, boxHeightPts: CGFloat) -> CGFloat {
+        min(fontSize * 0.2, boxHeightPts * 0.3)
+    }
 }

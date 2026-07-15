@@ -128,8 +128,37 @@ pub(crate) fn detect_boxes(loaded: &PdfPage<'_>, page: u16) -> Vec<DetectedBox> 
     let mut h_segments: Vec<(f32, f32, f32)> = Vec::new();
     let mut v_segments: Vec<(f32, f32, f32)> = Vec::new();
     let mut rect_paths: Vec<PdfRect> = Vec::new();
+    // Bounds of every image (logo, seal, photo, embedded signature) and text
+    // run on the page — used to reject a speculative Tier 3/4 candidate that
+    // actually already has content sitting in it (see `region_has_content`).
+    // A real fillable blank is empty; a rectangle drawn around a logo, or a
+    // line with a name/signature already printed above it, is not a field
+    // regardless of how well it matches the geometric shape of one.
+    let mut image_rects: Vec<PdfRect> = Vec::new();
+    let mut text_rects: Vec<PdfRect> = Vec::new();
 
     for object in loaded.objects().iter() {
+        if let Some(image) = object.as_image_object() {
+            // A scanned page is commonly one giant background image behind
+            // everything else — that's a page backdrop, not a logo/photo
+            // overlapping one specific field, and would otherwise flag
+            // *every* box on the page as "occupied". Same
+            // page-area-fraction cutoff `push_if_new` already uses to drop
+            // page borders/backgrounds from box candidates.
+            if let Ok(bounds) = image.bounds() {
+                let rect = bounds.to_rect();
+                if rect.width().value * rect.height().value <= max_area {
+                    image_rects.push(rect);
+                }
+            }
+            continue;
+        }
+        if let Some(text) = object.as_text_object() {
+            if let Ok(bounds) = text.bounds() {
+                text_rects.push(bounds.to_rect());
+            }
+            continue;
+        }
         let Some(path) = object.as_path_object() else {
             continue;
         };
@@ -343,7 +372,27 @@ pub(crate) fn detect_boxes(loaded: &PdfPage<'_>, page: u16) -> Vec<DetectedBox> 
         }
     }
 
-    prefer_inner_fields(boxes, underline_start)
+    // Reject any candidate — from any tier above, closed cell included, since
+    // a lone rectangle's own 4 edges satisfy the Tier 1 closed-cell pattern
+    // just as well as a real table cell's — that already has an image or a
+    // meaningful amount of text sitting inside it. A real fillable blank is
+    // empty; a rectangle framing a logo/seal/photo, or a line with a value
+    // already printed above it, is not a field regardless of which
+    // structural pattern detected it: "when in doubt, don't highlight it."
+    let is_occupied = |b: &DetectedBox| {
+        region_has_content(&image_rects, &text_rects, b.x, b.y, b.width, b.height)
+    };
+    // `underline_start` indexes into the *pre-filter* `boxes`; removing
+    // occupied entries ahead of it would shift every later index, so it's
+    // recomputed here as "how many pre-underline entries survive" rather than
+    // reused as-is.
+    let new_underline_start = boxes[..underline_start]
+        .iter()
+        .filter(|b| !is_occupied(b))
+        .count();
+    let boxes: Vec<DetectedBox> = boxes.into_iter().filter(|b| !is_occupied(b)).collect();
+
+    prefer_inner_fields(boxes, new_underline_start)
 }
 
 /// Drop any box that acts as a *container* for real fields rather than being
@@ -563,6 +612,50 @@ fn push_if_new(
     boxes.push(candidate);
 }
 
+/// Whether an image or text run already occupies a meaningful portion of
+/// `(x, y, width, height)` — i.e. this candidate field isn't actually blank.
+/// A sliver of overlap (a descender poking into the box, a line's own
+/// stroke) shouldn't disqualify a real field, so this requires the overlap
+/// to cover a real fraction of *whichever is smaller* — the candidate or the
+/// content — not just touch it. Dividing by the candidate's area alone would
+/// miss a small "Jane Doe" sitting on a wide underline (it can easily cover
+/// under 15% of a whole wide field while still very obviously being the
+/// field's already-written answer); dividing by the content's area alone
+/// instead correctly reads that case as "this text is basically entirely
+/// inside the field" regardless of how wide the field itself is.
+fn region_has_content(
+    images: &[PdfRect],
+    texts: &[PdfRect],
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+) -> bool {
+    const OCCUPIED_RATIO: f32 = 0.15;
+    let area = width * height;
+    if area <= 0.0 {
+        return false;
+    }
+    let overlaps = |r: &PdfRect| -> bool {
+        // Clamped to non-negative individually, *before* multiplying —
+        // otherwise two axes that each miss (both negative) would multiply
+        // into a spuriously positive "overlap" instead of the true zero.
+        let x_overlap = ((r.right().value).min(x + width) - (r.left().value).max(x)).max(0.0);
+        let y_overlap = ((r.top().value).min(y + height) - (r.bottom().value).max(y)).max(0.0);
+        let overlap_area = x_overlap * y_overlap;
+        if overlap_area <= 0.0 {
+            return false;
+        }
+        let content_area = r.width().value * r.height().value;
+        let smaller = area.min(content_area);
+        if smaller <= 0.0 {
+            return false;
+        }
+        overlap_area / smaller >= OCCUPIED_RATIO
+    };
+    images.iter().any(overlaps) || texts.iter().any(overlaps)
+}
+
 fn overlap_ratio(a: &DetectedBox, b: &DetectedBox) -> f32 {
     let x_overlap = (a.x + a.width).min(b.x + b.width) - a.x.max(b.x);
     let y_overlap = (a.y + a.height).min(b.y + b.height) - a.y.max(b.y);
@@ -575,5 +668,95 @@ fn overlap_ratio(a: &DetectedBox, b: &DetectedBox) -> f32 {
         0.0
     } else {
         intersection / smaller_area
+    }
+}
+
+// `region_has_content` is pure geometry — no `PDFium` binding needed — so,
+// unlike `boxes_on_page`/`detect_boxes` (integration-tested against real PDFs
+// in `tests/boxes.rs`, which the mutation-testing sandbox can't run without a
+// bundled `PDFium` binary), it's unit-tested directly here. Every case below
+// is deliberately built with the ratio sitting right at the 0.15 threshold,
+// so swapping any single `*`/`+`/`/` in the function flips the boolean —
+// that's what actually kills a mutant, not just exercising the code path.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rect(bottom: f32, left: f32, top: f32, right: f32) -> PdfRect {
+        PdfRect::new(
+            PdfPoints::new(bottom),
+            PdfPoints::new(left),
+            PdfPoints::new(top),
+            PdfPoints::new(right),
+        )
+    }
+
+    #[test]
+    fn no_content_at_all_is_not_occupied() {
+        assert!(!region_has_content(&[], &[], 0.0, 0.0, 10.0, 10.0));
+    }
+
+    #[test]
+    fn a_non_overlapping_image_does_not_occupy_the_region() {
+        let images = [rect(100.0, 100.0, 110.0, 110.0)];
+        assert!(!region_has_content(&images, &[], 0.0, 0.0, 10.0, 10.0));
+    }
+
+    #[test]
+    fn the_candidate_rects_far_edge_is_x_plus_width_not_x_times_width() {
+        // Candidate at x=0, y=0 — `x * width` collapses to 0 (moving the
+        // far edge to the origin) while `x + width` correctly reaches 10,
+        // so this only overlaps the image at all under the real formula.
+        let images = [rect(2.0, 2.0, 6.0, 6.0)];
+        assert!(region_has_content(&images, &[], 0.0, 0.0, 10.0, 10.0));
+    }
+
+    #[test]
+    fn candidate_area_is_width_times_height_not_width_plus_or_over_height() {
+        // Candidate 10x3 (area 30, correct); a huge image overlapping a
+        // 10x0.3 sliver of it (overlap area 3). 3/30 = 0.1, just under the
+        // 0.15 threshold. Swap the multiplication for `+` (area 13) or `/`
+        // (area ~3.33) and the ratio jumps to ~0.23 / ~0.9 — over the
+        // threshold — flipping this from "not occupied" to "occupied".
+        let images = [rect(-99.7, 0.0, 0.3, 100.0)];
+        assert!(!region_has_content(&images, &[], 0.0, 0.0, 10.0, 3.0));
+    }
+
+    #[test]
+    fn content_area_is_width_times_height_not_width_plus_or_over_height() {
+        // Mirror of the above, but the *image's* own area is what's being
+        // pinned down: a 10x3 image (area 30, correct) only partly
+        // overlapped by a candidate that's wide (1000) but just 0.3 tall —
+        // wide enough, and with an area (300) big enough, that it's never
+        // the limiting "smaller" one, while clipping the image down to a
+        // 10x0.3 sliver of overlap (area 3). Same 0.1-vs-threshold logic as
+        // the candidate-area test above, just with the roles swapped for
+        // the area calculation under test.
+        let images = [rect(0.0, 0.0, 3.0, 10.0)];
+        assert!(!region_has_content(&images, &[], 0.0, 0.0, 1000.0, 0.3));
+    }
+
+    #[test]
+    fn overlap_area_is_x_overlap_times_y_overlap_not_plus_or_over() {
+        // Candidate 10x6 (area 60, correct, and the smaller of the two
+        // areas here) at the origin; a huge image clipped so the actual
+        // intersection is exactly 6x2 (overlap area 12). 12/60 = 0.2, just
+        // over threshold. Swap the overlap multiplication for `+` (8) or
+        // `/` (3) and the ratio drops to ~0.13 / 0.05 — under threshold —
+        // flipping this from "occupied" to "not occupied".
+        let images = [rect(-1000.0, -1000.0, 2.0, 6.0)];
+        assert!(region_has_content(&images, &[], 0.0, 0.0, 10.0, 6.0));
+    }
+
+    #[test]
+    fn only_an_image_overlapping_is_still_occupied() {
+        let images = [rect(2.0, 2.0, 6.0, 6.0)];
+        assert!(region_has_content(&images, &[], 0.0, 0.0, 10.0, 10.0));
+    }
+
+    #[test]
+    fn only_a_text_run_overlapping_is_still_occupied() {
+        let texts = [rect(2.0, 2.0, 6.0, 6.0)];
+        assert!(region_has_content(&[], &texts, 0.0, 0.0, 10.0, 10.0));
     }
 }
