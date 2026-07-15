@@ -13,8 +13,7 @@ uniffi::setup_scaffolding!();
 use std::sync::Arc;
 
 use pdfree_core::{
-    annotations, boxes, convert, editor, forms, pages, pageview, signatures, Document,
-    RenderOptions,
+    annotations, boxes, convert, editor, fields, forms, pages, signatures, Document, RenderOptions,
 };
 
 /// A page's size in PDF points (72/inch).
@@ -131,6 +130,31 @@ impl PdfDocument {
         let (width, height) = self.inner.page_size(index)?;
         Ok(PageSize { width, height })
     }
+}
+
+/// Render page `index` (0-based) of a document's bytes to PNG bytes at the
+/// given DPI — the same as [`PdfDocument::render_page`], but as a free
+/// function over raw bytes so a shell can render off its main thread without
+/// holding (or sharing across threads) a `PdfDocument` handle. Loading is
+/// cheap relative to rasterization, so re-parsing here is a fair trade for
+/// keeping the render off the UI thread.
+#[uniffi::export]
+pub fn render_page(pdf_bytes: Vec<u8>, index: u16, dpi: u32) -> Result<Vec<u8>, PdfFreeError> {
+    Ok(pdfree_core::renderer::render_page_to_png(
+        &pdf_bytes,
+        index,
+        &RenderOptions::with_dpi(dpi as f32),
+    )?)
+}
+
+/// Page `index`'s size in PDF points (72/inch), as a free function over raw
+/// bytes — the off-main-thread companion to [`PdfDocument::page_size`], so a
+/// shell can compute fit-to-page DPI without touching `PDFium` on its UI
+/// thread (`PDFium` is not safe to drive from two threads at once).
+#[uniffi::export]
+pub fn page_size(pdf_bytes: Vec<u8>, index: u16) -> Result<PageSize, PdfFreeError> {
+    let (width, height) = pdfree_core::renderer::page_size_points(&pdf_bytes, index)?;
+    Ok(PageSize { width, height })
 }
 
 /// The DPI that renders a `page_width_pts` × `page_height_pts` page as large
@@ -737,32 +761,81 @@ pub fn boxes_on_page(pdf_bytes: Vec<u8>, page: u16) -> Result<Vec<DetectedBox>, 
         .collect())
 }
 
-/// A page's render plus its detected boxes, from a single bind + parse — see
-/// [`pageview`]'s module doc for why loading these separately (as `renderPage`
-/// and `boxesOnPage`, each independently binding `PDFium` and re-parsing the
-/// whole document) was the actual root cause of slow document open and slow
-/// page navigation.
-#[derive(Debug, Clone, uniffi::Record)]
-pub struct PageView {
-    pub png: Vec<u8>,
-    pub boxes: Vec<DetectedBox>,
+// ---------------------------------------------------------------------------
+// Fields (label-aware fillable-field detection).
+//
+// The list a shell should actually highlight: every AcroForm widget, plus
+// every detected box/line that has a human-readable label next to it and
+// doesn't duplicate a widget. Computed in a single document parse — a shell
+// should prefer this over calling `form_fields` and `boxes_on_page`
+// separately per page.
+// ---------------------------------------------------------------------------
+
+/// Where a [`FillableField`] came from. Mirrors `pdfree_core::fields::FieldSource`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum FieldSource {
+    /// A genuine, author-declared `AcroForm` widget.
+    AcroForm,
+    /// A box/line reconstructed from vector graphics, kept because it has a
+    /// nearby text label.
+    Detected,
 }
 
-impl From<pageview::PageView> for PageView {
-    fn from(v: pageview::PageView) -> Self {
-        Self {
-            png: v.png,
-            boxes: v.boxes.into_iter().map(Into::into).collect(),
+impl From<fields::FieldSource> for FieldSource {
+    fn from(s: fields::FieldSource) -> Self {
+        match s {
+            fields::FieldSource::AcroForm => FieldSource::AcroForm,
+            fields::FieldSource::Detected => FieldSource::Detected,
         }
     }
 }
 
-/// Render `page` and detect its fillable boxes together — the call a shell
-/// should make instead of separate `renderPage` + `boxesOnPage` calls when it
-/// needs both (document open, and every page navigation).
+/// One field a shell should present an input affordance for, in PDF points.
+/// Mirrors `pdfree_core::fields::FillableField`.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct FillableField {
+    pub page: u16,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    /// The label found next to (or above) the field. Always present for a
+    /// `Detected` field; best-effort for an `AcroForm` widget.
+    pub label: Option<String>,
+    /// The `AcroForm` field name, when this came from a real widget.
+    pub field_name: Option<String>,
+    pub signature_kind: SignatureFieldKind,
+    pub source: FieldSource,
+}
+
+impl From<fields::FillableField> for FillableField {
+    fn from(f: fields::FillableField) -> Self {
+        Self {
+            page: f.page,
+            x: f.x,
+            y: f.y,
+            width: f.width,
+            height: f.height,
+            label: f.label,
+            field_name: f.field_name,
+            signature_kind: f.signature_kind.into(),
+            source: f.source.into(),
+        }
+    }
+}
+
+/// Detect every fillable field on `page` a shell should highlight, in a
+/// single document parse — the accurate, label-aware replacement for scanning
+/// `boxes_on_page` and `form_fields` separately. A drawn box with no label
+/// next to it is deliberately not reported (it isn't a field a human would
+/// fill), and every real `AcroForm` widget is always reported even when no
+/// box is drawn around it.
 #[uniffi::export]
-pub fn page_view(pdf_bytes: Vec<u8>, page: u16, dpi: f32) -> Result<PageView, PdfFreeError> {
-    Ok(pageview::page_view(&pdf_bytes, page, dpi)?.into())
+pub fn fillable_fields(pdf_bytes: Vec<u8>, page: u16) -> Result<Vec<FillableField>, PdfFreeError> {
+    Ok(fields::fillable_fields(&pdf_bytes, page)?
+        .into_iter()
+        .map(Into::into)
+        .collect())
 }
 
 // ---------------------------------------------------------------------------

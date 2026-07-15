@@ -116,7 +116,7 @@ pub enum FieldKind {
 }
 
 impl FieldKind {
-    fn from_pdfium(kind: PdfFormFieldType) -> Self {
+    pub(crate) fn from_pdfium(kind: PdfFormFieldType) -> Self {
         match kind {
             PdfFormFieldType::Text => FieldKind::Text,
             PdfFormFieldType::Checkbox => FieldKind::Checkbox,

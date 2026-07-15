@@ -19,7 +19,9 @@
 //! `web-sys` and is a separate, not-yet-attempted piece of work (see
 //! CLAUDE.md's Phase 4 checklist).
 
-use pdfree_core::{annotations, boxes, convert, editor, forms, pages, signatures, Document};
+use pdfree_core::{
+    annotations, boxes, convert, editor, fields, forms, pages, signatures, Document,
+};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -701,6 +703,74 @@ pub fn box_at_point(pdf_bytes: Vec<u8>, page: u16, x: f32, y: f32) -> Result<JsV
 #[wasm_bindgen(js_name = boxesOnPage)]
 pub fn boxes_on_page(pdf_bytes: Vec<u8>, page: u16) -> Result<JsValue, JsError> {
     let found: Vec<DetectedBox> = boxes::boxes_on_page(&pdf_bytes, page)
+        .map_err(to_js)?
+        .into_iter()
+        .map(Into::into)
+        .collect();
+    to_value(&found)
+}
+
+// ---------------------------------------------------------------------------
+// Fields (label-aware fillable-field detection).
+// ---------------------------------------------------------------------------
+
+/// Where a [`FillableField`] came from. Mirrors `pdfree_core::fields::FieldSource`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FieldSource {
+    AcroForm,
+    Detected,
+}
+
+impl From<fields::FieldSource> for FieldSource {
+    fn from(s: fields::FieldSource) -> Self {
+        match s {
+            fields::FieldSource::AcroForm => FieldSource::AcroForm,
+            fields::FieldSource::Detected => FieldSource::Detected,
+        }
+    }
+}
+
+/// One field a shell should present an input affordance for, in PDF points.
+/// Mirrors `pdfree_core::fields::FillableField`.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FillableField {
+    pub page: u16,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub label: Option<String>,
+    pub field_name: Option<String>,
+    pub signature_kind: SignatureFieldKind,
+    pub source: FieldSource,
+}
+
+impl From<fields::FillableField> for FillableField {
+    fn from(f: fields::FillableField) -> Self {
+        Self {
+            page: f.page,
+            x: f.x,
+            y: f.y,
+            width: f.width,
+            height: f.height,
+            label: f.label,
+            field_name: f.field_name,
+            signature_kind: f.signature_kind.into(),
+            source: f.source.into(),
+        }
+    }
+}
+
+/// Detect every fillable field on `page` a shell should highlight, in a
+/// single document parse — the accurate, label-aware replacement for scanning
+/// `boxesOnPage` and `formFields` separately. A drawn box with no label next
+/// to it is deliberately not reported, and every real `AcroForm` widget is
+/// always reported even with no box drawn around it.
+#[wasm_bindgen(js_name = fillableFields)]
+pub fn fillable_fields(pdf_bytes: Vec<u8>, page: u16) -> Result<JsValue, JsError> {
+    let found: Vec<FillableField> = fields::fillable_fields(&pdf_bytes, page)
         .map_err(to_js)?
         .into_iter()
         .map(Into::into)

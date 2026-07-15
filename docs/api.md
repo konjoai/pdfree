@@ -287,6 +287,59 @@ Two implementation details worth knowing if this ever needs revisiting:
 Returns `None` if neither strategy finds an enclosing box — the caller
 decides the fallback (a fixed-size overlay, typically).
 
+## Fields: label-aware fillable-field detection
+
+`boxes::boxes_on_page` above is *geometry only* — it finds every drawn
+rectangle and ruled cell, which on a real form over-detects (decorative
+rules, layout frames, table borders a human would never fill) and, being
+blind to the form dictionary, misses `AcroForm` fields that have no box
+drawn around them. `fields::fillable_fields` is the list a shell should
+actually highlight, computed in a **single** document parse (so a shell
+should prefer it over calling `boxes_on_page` and `forms::fields` separately
+per page):
+
+```rust
+use pdfree_core::fields::{self, FieldSource};
+
+for field in fields::fillable_fields(&pdf_bytes, 0)? {
+    // field.x/y/width/height in PDF points; field.label is what named it;
+    // field.signature_kind routes signing fields to the sign flow.
+    match field.source {
+        FieldSource::AcroForm => { /* a real interactive widget */ }
+        FieldSource::Detected => { /* a labeled box on a flat form */ }
+    }
+}
+```
+
+The rule, in one line: **a field must be either a real `AcroForm` widget or a
+drawn box with a human-readable label next to it.** Concretely:
+
+1. **`AcroForm` widgets** are always reported (text/checkbox/radio/dropdown/
+   list-box/signature — push buttons and unknowns are skipped). They're
+   author-declared fields, so dropping one is exactly the "missed a fillable
+   field" bug; each is paired with a nearby label for display where one is
+   found.
+2. **Detected boxes** (from `boxes_on_page`) are kept **only** when a text
+   run sits immediately to their left on the same line (`Name: ____`) or just
+   above them (a column header), and only when they don't duplicate a widget
+   already reported. A drawn box with no label near it is not a field — this
+   is what stops decorative/layout rectangles from being highlighted, and
+   what makes the detector work on flat/scanned forms with no `AcroForm` at
+   all.
+
+A detected box whose label reads like a signature/initials line ("Sign
+here", "Initials", …) is classified into the sign flow the same way an
+`AcroForm` signature field is (Core UX Principle #3), so a flat form's
+signature line routes to signing rather than a text caret.
+
+The label-matching itself (`best_label`) is a pure function over plain run
+geometry, unit-tested without `PDFium`; see `fields.rs`. `render_page` and
+`page_size` also exist as free byte-slice functions (mirrored in
+`pdfree-ffi` and `pdfree-wasm`) so a shell can render and measure a page off
+its main thread without holding a `Document` handle — `PDFium` is not safe to
+drive from two threads at once, so keeping every call on one background queue
+matters.
+
 ## Search: in-document text search (Phase 4 quick win — "⌘F")
 
 ```rust

@@ -106,26 +106,21 @@ const CONTAINER_INNER_RATIO: f32 = 0.9;
 pub fn boxes_on_page(pdf_bytes: &[u8], page: u16) -> Result<Vec<DetectedBox>> {
     let pdfium = crate::pdfium::bind()?;
     let document = pdfium.load_pdf_from_byte_slice(pdf_bytes, None)?;
-    boxes_on_loaded_page(&document, page)
-}
-
-/// Same as [`boxes_on_page`], but works from an already-bound `PDFium`
-/// document rather than binding and re-parsing `pdf_bytes` itself. Exists so
-/// [`crate::pageview`] can gather a rendered page *and* its detected boxes
-/// from a single bind + parse — `boxes_on_page`'s own from-scratch bind is by
-/// far the heaviest per-page `pdfree-core` call, and re-paying it separately
-/// for every page render was the actual root cause of "page navigation is
-/// slow" and "even a 1-page PDF is slow to open". This must only ever be
-/// called with a `document` from a bind that hasn't been reused across a
-/// *different* prior document load — see `crate::pdfium::bind`'s docs on why
-/// a single `PDFium` binding can't safely be cached and reused that way.
-pub(crate) fn boxes_on_loaded_page(document: &PdfDocument, page: u16) -> Result<Vec<DetectedBox>> {
     let count = document.pages().len();
     if page >= count {
         return Err(PdfError::PageOutOfRange { index: page, count });
     }
 
     let loaded = document.pages().get(page)?;
+    Ok(detect_boxes(&loaded, page))
+}
+
+/// The pure geometric core of [`boxes_on_page`], operating on an
+/// already-loaded page so a caller that has also loaded the same document for
+/// other work (see [`crate::fields`]) doesn't have to re-parse the PDF just to
+/// run the box scan. Prefer this over calling [`boxes_on_page`] a second time
+/// on the same document.
+pub(crate) fn detect_boxes(loaded: &PdfPage<'_>, page: u16) -> Vec<DetectedBox> {
     let page_area = (loaded.width().value.max(0.0) * loaded.height().value.max(0.0)).max(1.0);
     let max_area = page_area * MAX_BOX_AREA_RATIO;
 
@@ -397,7 +392,7 @@ pub(crate) fn boxes_on_loaded_page(document: &PdfDocument, page: u16) -> Result<
         .count();
     let boxes: Vec<DetectedBox> = boxes.into_iter().filter(|b| !is_occupied(b)).collect();
 
-    Ok(prefer_inner_fields(boxes, new_underline_start))
+    prefer_inner_fields(boxes, new_underline_start)
 }
 
 /// Drop any box that acts as a *container* for real fields rather than being

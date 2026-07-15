@@ -11,6 +11,9 @@ private enum ActiveSheet: Identifiable {
     /// Manual fallback: Sign tool clicked somewhere with no detected
     /// signature field under the point.
     case signaturePoint(CGPoint)
+    /// A label-detected signature line on a flat form (no backing `AcroForm`
+    /// widget): sign directly into this box's rect.
+    case signatureBox(DetectedBox)
     case note(CGPoint)
     case editText(TextRun)
     case fillForm
@@ -22,6 +25,7 @@ private enum ActiveSheet: Identifiable {
         switch self {
         case .signatureField(let field, let tab): return "signatureField-\(field.name)-\(tab.rawValue)"
         case .signaturePoint: return "signaturePoint"
+        case .signatureBox(let box): return "signatureBox-\(box.x)-\(box.y)"
         case .note: return "note"
         case .editText: return "editText"
         case .fillForm: return "fillForm"
@@ -220,10 +224,10 @@ struct ContentView: View {
     private var fieldCountChip: some View {
         VStack {
             HStack {
-                if !store.formFieldsList.isEmpty {
+                if !store.fieldOverlays.isEmpty {
                     HStack(spacing: 7) {
                         Circle().fill(Theme.Color.green).frame(width: 6, height: 6)
-                        Text("\(store.formFieldsList.count) fillable fields detected")
+                        Text(fieldCountLabel)
                     }
                     .font(Theme.Font.overlayChip)
                     .foregroundStyle(Theme.Color.greenChipText)
@@ -236,6 +240,14 @@ struct ContentView: View {
             }
             Spacer()
         }
+    }
+
+    /// "N fillable field(s) on this page" — reflects what's actually
+    /// highlighted (label-aware `fieldOverlays`), which for a flat form with
+    /// no `AcroForm` is the only honest count.
+    private var fieldCountLabel: String {
+        let n = store.fieldOverlays.count
+        return "\(n) fillable field\(n == 1 ? "" : "s") on this page"
     }
 
     private var pageNavBar: some View {
@@ -278,8 +290,8 @@ struct ContentView: View {
             break
         case .fill:
             if let overlay = store.fieldOverlay(containingX: Float(point.x), y: Float(point.y)) {
-                if overlay.isSignature, let field = matchingField(overlay) {
-                    beginSigning(from: field)
+                if overlay.isSignature {
+                    beginSigningOverlay(overlay)
                 } else if isEditing(overlay.box) {
                     // Same field already open (e.g. a click to reposition
                     // the caret) — leave the in-progress text alone rather
@@ -297,8 +309,8 @@ struct ContentView: View {
             }
         case .sign:
             if let overlay = store.fieldOverlay(containingX: Float(point.x), y: Float(point.y)),
-               let field = matchingField(overlay) {
-                beginSigning(from: field)
+               overlay.isSignature {
+                beginSigningOverlay(overlay)
             } else if signSession == nil {
                 activeSheet = .signaturePoint(point)
             }
@@ -319,10 +331,12 @@ struct ContentView: View {
                 height: Float(Self.defaultBoxSize.height)
             )
         case .editText:
-            if let run = store.textRun(atPage: store.pageIndex, x: Float(point.x), y: Float(point.y)) {
-                activeSheet = .editText(run)
-            } else if store.errorMessage == nil {
-                store.errorMessage = "No text found at that point."
+            store.textRun(atPage: store.pageIndex, x: Float(point.x), y: Float(point.y)) { run in
+                if let run {
+                    activeSheet = .editText(run)
+                } else if store.errorMessage == nil {
+                    store.errorMessage = "No text found at that point."
+                }
             }
         case .highlight, .underline, .strikeout:
             break // handled by handleDrag
@@ -417,6 +431,18 @@ struct ContentView: View {
 
     private func hasSavedMark(for field: FormField) -> Bool {
         store.savedSignatures.contains { $0.kind == signatureKind(for: field) }
+    }
+
+    /// Route a click on a signature-kind overlay to signing. An `AcroForm`
+    /// signature widget (has a backing `FormField`) starts the rich hop
+    /// session; a label-detected signature line on a flat form (no widget)
+    /// opens a one-off sign sheet anchored to that box.
+    private func beginSigningOverlay(_ overlay: FieldOverlayBox) {
+        if let field = matchingField(overlay) {
+            beginSigning(from: field)
+        } else {
+            activeSheet = .signatureBox(overlay.box)
+        }
     }
 
     /// Every signature/initials field in the document, reordered so `field`
@@ -559,6 +585,20 @@ struct ContentView: View {
                 onCancel: { activeSheet = nil }
             )
 
+        case .signatureBox(let box):
+            SignatureSheet(
+                kind: .signature, initialTab: .draw,
+                onPlace: { pngData, saveForReuse in
+                    store.applySignature(
+                        pngData: pngData,
+                        at: SignaturePlacement(page: box.page, x: box.x, y: box.y, width: box.width, height: box.height)
+                    )
+                    if saveForReuse { store.saveSignature(pngData: pngData, kind: .signature) }
+                    activeSheet = nil
+                },
+                onCancel: { activeSheet = nil }
+            )
+
         case .note(let point):
             TextPromptSheet(title: "Add Note", placeholder: "Note text") { text in
                 store.applyAnnotation(Annotation(
@@ -589,8 +629,8 @@ struct ContentView: View {
 
         case .splitRanges:
             SplitSheet(pageCount: store.pageCount) { ranges in
-                if let pieces = store.splitExport(ranges: ranges) {
-                    savePieces(pieces)
+                store.splitExport(ranges: ranges) { pieces in
+                    if let pieces { savePieces(pieces) }
                 }
                 activeSheet = nil
             } onCancel: {
