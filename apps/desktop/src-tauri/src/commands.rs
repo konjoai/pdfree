@@ -15,7 +15,7 @@
 //! them in a stateful per-document object (there is no long-lived
 //! `PdfDocument` handle held on the Rust side between IPC calls).
 
-use pdfree_core::{convert, forms, pages, signatures};
+use pdfree_core::{convert, fields, forms, pages, signatures};
 use serde::{Deserialize, Serialize};
 
 fn to_err(e: pdfree_core::PdfError) -> String {
@@ -176,6 +176,70 @@ impl From<pdfree_core::boxes::DetectedBox> for DetectedBox {
 pub fn boxes_on_page(pdf_bytes: Vec<u8>, page: u16) -> Result<Vec<DetectedBox>, String> {
     pdfree_core::boxes::boxes_on_page(&pdf_bytes, page)
         .map(|boxes| boxes.into_iter().map(Into::into).collect())
+        .map_err(to_err)
+}
+
+// ---------------------------------------------------------------------------
+// Fields (label-aware fillable-field detection, Phase 4 add-on).
+//
+// The list a shell should actually highlight: every AcroForm widget, plus
+// every detected box/line that has a human-readable label next to it and
+// doesn't duplicate a widget. Mirrors `pdfree-wasm`'s `fillableFields`
+// (crates/pdfree-wasm/src/lib.rs) so `apps/web`'s React UI gets identical
+// field-overlay accuracy whether it's running in-browser (WASM) or under
+// Tauri (this command).
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FieldSource {
+    AcroForm,
+    Detected,
+}
+
+impl From<fields::FieldSource> for FieldSource {
+    fn from(s: fields::FieldSource) -> Self {
+        match s {
+            fields::FieldSource::AcroForm => FieldSource::AcroForm,
+            fields::FieldSource::Detected => FieldSource::Detected,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FillableField {
+    pub page: u16,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub label: Option<String>,
+    pub field_name: Option<String>,
+    pub signature_kind: String,
+    pub source: FieldSource,
+}
+
+impl From<fields::FillableField> for FillableField {
+    fn from(f: fields::FillableField) -> Self {
+        Self {
+            page: f.page,
+            x: f.x,
+            y: f.y,
+            width: f.width,
+            height: f.height,
+            label: f.label,
+            field_name: f.field_name,
+            signature_kind: format!("{:?}", f.signature_kind),
+            source: f.source.into(),
+        }
+    }
+}
+
+#[tauri::command]
+pub fn fillable_fields(pdf_bytes: Vec<u8>, page: u16) -> Result<Vec<FillableField>, String> {
+    fields::fillable_fields(&pdf_bytes, page)
+        .map(|found| found.into_iter().map(Into::into).collect())
         .map_err(to_err)
 }
 

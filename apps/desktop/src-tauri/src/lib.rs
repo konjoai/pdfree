@@ -42,6 +42,7 @@ pub fn run() {
             commands::form_fields,
             commands::overlay_text,
             commands::boxes_on_page,
+            commands::fillable_fields,
             commands::place_signature_with_audit,
             commands::merge_documents,
             commands::rotate_page,
