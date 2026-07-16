@@ -5,8 +5,32 @@
 //! initialized automatically the moment a document is opened (see
 //! [`pdfium_render`]'s `PdfForm`). Writing is honestly scoped to what the
 //! underlying binding actually supports: `PDFium` exposes setters for text
-//! fields and checkboxes, but not for selecting an option in a dropdown or
-//! list box — see [`FillValue`] and [`fill`] for the exact contract.
+//! fields and checkboxes, but not for selecting an option in a dropdown,
+//! list box, or radio group — see [`FillValue`] and [`fill`] for the exact
+//! contract.
+//!
+//! **Radio button selection was investigated in depth and confirmed
+//! unreachable, not just unimplemented.** `pdfium-render` 0.8.37's
+//! `PdfFormRadioButtonField::set_checked()` looks like exactly the setter
+//! this needs, and does compile — but verified against a real, freshly
+//! authored radio-group fixture (`tests/fixtures/radio_sample.pdf`), calling
+//! it is a no-op. Its actual implementation copies the widget's *current*
+//! `/AS` (appearance-state) value up to the group's shared `/V`; it doesn't
+//! set `/AS` to this widget's own "on" export value first, and there is no
+//! public way to do that from outside the crate either (the same
+//! `pub(crate)`-only `PdfFormFieldPrivate` trait — and the same missing
+//! public annotation-handle accessor — that blocks the `/DA` font-size fix
+//! below blocks this too). For a widget whose `/AS` starts at `"Off"` (every
+//! option, until a real interactive click cycle has run), `set_checked()`
+//! therefore just writes `"Off"` back — it can only ever *confirm* a
+//! selection PDFium's own interactive click-handling already made, not
+//! *establish* one from a headless byte-in/byte-out call. `FormField` still
+//! exposes `radio_group_index` (each widget's position within its group, a
+//! genuine read-side improvement — useful for grouping/displaying a radio
+//! group's options), but [`FillValue`] has no `Radio` variant: shipping one
+//! that silently doesn't work would be worse than not having it. Revisit
+//! only if a future `pdfium-render` release exposes a public `/AS` setter or
+//! widget export-value getter.
 //!
 //! **Known gap: no font-size control on text field fill.** `fill()` cannot
 //! bake in a deterministic "fit once" font size for a text field, and this is
@@ -54,6 +78,12 @@ pub struct FormField {
     /// text input, and if so, whether it's a full signature or (lighter-
     /// weight) initials — see [`SignatureFieldKind`].
     pub signature_kind: SignatureFieldKind,
+    /// This widget's position within its radio button group, if `kind` is
+    /// [`FieldKind::RadioButton`] — `None` for every other kind. Pass this
+    /// back in [`FillValue::Radio`] to select this specific option; see the
+    /// module doc comment for why index (not the option's value string) is
+    /// the only reliable public handle `pdfium-render` gives us.
+    pub radio_group_index: Option<u32>,
 }
 
 /// Whether a field is a signature/initials field a shell should route to the
@@ -133,10 +163,10 @@ impl FieldKind {
 /// A value to fill into a named interactive form field.
 ///
 /// Scoped to what `PDFium`'s public binding can actually write: a text field's
-/// string, or a checkbox's checked state. Dropdowns, list boxes, radio button
-/// groups, and signature fields are readable via [`fields`] but not fillable
-/// through this API yet — `pdfium-render` 0.8 exposes no public setter for
-/// selecting an option, only for the two field kinds above.
+/// string, or a checkbox's checked state. Dropdowns, list boxes, and radio
+/// button groups are readable via [`fields`] but not fillable through this
+/// API — see the module doc comment for why radio selection specifically was
+/// investigated and confirmed unreachable, not merely unimplemented.
 #[derive(Debug, Clone)]
 pub enum FillValue {
     /// Set a text field's value.
@@ -162,6 +192,10 @@ pub fn fields(pdf_bytes: &[u8]) -> Result<Vec<FormField>> {
                 let bounds = annotation.bounds().unwrap_or(PdfRect::ZERO);
                 let name = field.name().unwrap_or_default();
                 let kind = FieldKind::from_pdfium(field.field_type());
+                let radio_group_index = match &field {
+                    PdfFormField::RadioButton(f) => Some(f.index_in_group()),
+                    _ => None,
+                };
                 out.push(FormField {
                     signature_kind: SignatureFieldKind::classify(&name, kind),
                     value: field_value(field),
@@ -175,6 +209,7 @@ pub fn fields(pdf_bytes: &[u8]) -> Result<Vec<FormField>> {
                     y: bounds.bottom().value,
                     width: bounds.width().value,
                     height: bounds.height().value,
+                    radio_group_index,
                 });
             }
         }

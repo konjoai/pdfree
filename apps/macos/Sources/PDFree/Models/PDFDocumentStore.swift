@@ -23,6 +23,11 @@ struct FieldOverlayBox: Identifiable {
     var isSignature: Bool { signatureKind != .none }
 }
 
+enum PageViewMode {
+    case single
+    case continuous
+}
+
 /// Owns the current PDF's bytes and the parsed `PdfDocument` handle, and is
 /// the single place every `pdfree-ffi` mutation flows through: each one takes
 /// the current bytes, produces new bytes, and this store reloads from the
@@ -37,8 +42,22 @@ final class PDFDocumentStore: ObservableObject {
     @Published private(set) var data: Data?
     @Published private(set) var document: PdfDocument?
     @Published var pageIndex: UInt16 = 0
+    /// Bumped only by explicit page navigation (`goToPage` and everything
+    /// that calls it — thumbnail taps, search jumps, outline taps, prev/next).
+    /// Continuous-scroll's own scroll-position tracking sets `pageIndex`
+    /// directly without going through `goToPage`, so it never bumps this —
+    /// that's what lets `ContinuousScrollView` tell "the user asked to jump
+    /// to page N" apart from "scrolling revealed that page N is now on
+    /// screen" and only react to the former (reacting to both would fight
+    /// the user's own scroll, snapping back to a page's top mid-drag).
+    @Published private(set) var pageJumpToken = 0
     @Published var pageImage: NSImage?
     @Published var pagePointSize: CGSize = .zero
+    /// Single-page (paged, always fit-to-page-on-load) or continuous-scroll
+    /// (every page stacked vertically, fit-to-width). See CLAUDE.md's
+    /// continuous-scroll research note — this mode is strictly additive: it
+    /// doesn't change single-page mode's own fit-to-page-on-load behavior.
+    @Published var pageViewMode: PageViewMode = .single
     @Published var formFieldsList: [FormField] = []
     @Published var annotationsList: [AnnotationInfo] = []
     /// The label-aware fillable fields on the current page (see
@@ -46,16 +65,54 @@ final class PDFDocumentStore: ObservableObject {
     /// every label-detected box — computed once per page load and presented
     /// up front. This is exactly what `PageCanvasView` draws.
     @Published var fieldOverlays: [FieldOverlayBox] = []
+    /// The document's outline/table-of-contents tree, if it has one — empty
+    /// for the common case of a PDF with no bookmarks. Loaded once per
+    /// document alongside `formFieldsList`/`annotationsList`.
+    @Published private(set) var documentOutline: [Bookmark] = []
     @Published var errorMessage: String?
     @Published var isBusy = false
     @Published var fileURL: URL?
     @Published private(set) var recentFiles: [URL] = []
     @Published private(set) var savedSignatures: [SavedSignature] = []
+    /// Every run matching the current search query, in page order — see
+    /// `search(query:)`. Empty whenever the search bar is closed or the
+    /// query has no matches.
+    @Published private(set) var searchMatches: [SearchMatch] = []
+    /// Index into `searchMatches` of the currently highlighted/jumped-to
+    /// match, or `nil` when there are no matches (including "haven't
+    /// searched yet").
+    @Published var currentSearchMatchIndex: Int?
+    /// Whether `undo()`/`redo()` currently have a snapshot to restore —
+    /// drives the Edit-menu/keyboard-shortcut enablement.
+    @Published private(set) var canUndo = false
+    @Published private(set) var canRedo = false
+
+    /// Bumped on every `search(query:)` call. A background search result
+    /// whose captured token no longer matches is stale (a newer search, or a
+    /// document change, superseded it) and is dropped.
+    private var searchToken = 0
+
+    /// Whole-document byte snapshots for undo/redo. Every `pdfree-core`
+    /// mutation already takes whole-document bytes in and returns
+    /// whole-document bytes out (see `mutate()`), so a bounded stack of past
+    /// snapshots is the natural fit — no rope/operation-log machinery needed,
+    /// since the engine never mutates incrementally in place. Capped at
+    /// `maxUndoDepth` entries; realistic document sizes (a few MB) make even
+    /// that many snapshots a non-issue in memory.
+    private var undoStack: [Data] = []
+    private var redoStack: [Data] = []
+    private let maxUndoDepth = 20
 
     private var thumbnailCache: [UInt16: NSImage] = [:]
     /// Thumbnail page indices with a background render in flight, so the same
     /// page isn't queued twice while the sidebar re-renders.
     private var pendingThumbnails: Set<UInt16> = []
+    /// Continuous-scroll mode's per-page images — fit-to-width (not
+    /// fit-to-page, since these stack vertically and scroll), separate from
+    /// `thumbnailCache`'s low-res sidebar renders. Populated lazily as
+    /// `ContinuousScrollView`'s `LazyVStack` brings each page on screen.
+    private var continuousImageCache: [UInt16: NSImage] = [:]
+    private var pendingContinuousImages: Set<UInt16> = []
     /// Per-page fillable-field scan and page-size results, cached because
     /// neither changes when only the zoom/DPI changes — so a window resize
     /// re-renders the image without re-running the (expensive) field scan.
@@ -151,10 +208,15 @@ final class PDFDocumentStore: ObservableObject {
                     self.fieldOverlays = []
                     self.formFieldsList = []
                     self.annotationsList = []
+                    self.documentOutline = []
                     self.thumbnailCache.removeAll()
                     self.pendingThumbnails.removeAll()
+                    self.continuousImageCache.removeAll()
+                    self.pendingContinuousImages.removeAll()
                     self.overlaysCache.removeAll()
                     self.pageSizeCache.removeAll()
+                    self.clearSearch()
+                    self.clearUndoHistory()
                     self.isBusy = false
                     self.rememberRecent(url)
                     self.refreshAfterLoad()
@@ -180,19 +242,25 @@ final class PDFDocumentStore: ObservableObject {
         formFieldsList = []
         annotationsList = []
         fieldOverlays = []
+        documentOutline = []
         fileURL = nil
         pageIndex = 0
         isBusy = false
         thumbnailCache.removeAll()
         pendingThumbnails.removeAll()
+        continuousImageCache.removeAll()
+        pendingContinuousImages.removeAll()
         overlaysCache.removeAll()
         pageSizeCache.removeAll()
+        clearSearch()
+        clearUndoHistory()
         viewportSize = .zero
     }
 
     func goToPage(_ index: UInt16) {
         guard index < pageCount else { return }
         pageIndex = index
+        pageJumpToken += 1
         renderCurrentPage()
     }
 
@@ -222,6 +290,52 @@ final class PDFDocumentStore: ObservableObject {
         return nil
     }
 
+    /// A page image for continuous-scroll mode, fit to `viewportWidth` rather
+    /// than fit-to-page (these stack vertically and scroll, so only the width
+    /// needs to match the column). Same lazy/cached/deduped shape as
+    /// `thumbnail(at:)`. Also opportunistically fills `pageSizeCache` so
+    /// `ContinuousPageRow`'s placeholder sizing has a real aspect ratio as
+    /// soon as any page's size has been read once.
+    func continuousPageImage(at index: UInt16, viewportWidth: CGFloat) -> NSImage? {
+        if let cached = continuousImageCache[index] { return cached }
+        guard let data, viewportWidth > 0, !pendingContinuousImages.contains(index) else { return nil }
+        pendingContinuousImages.insert(index)
+        let token = docToken
+        let cachedSize = pageSizeCache[index]
+        let fallback = fallbackDPI
+        ffiQueue.async {
+            let size = cachedSize ?? (try? pageSize(pdfBytes: data, index: index))
+                .map { CGSize(width: CGFloat($0.width), height: CGFloat($0.height)) }
+            let dpi = Self.fitWidthDPI(pageWidth: size?.width, viewportWidth: viewportWidth, fallback: fallback).rounded()
+            let png = try? renderPage(pdfBytes: data, index: index, dpi: UInt32(dpi))
+            let image = png.flatMap { NSImage(data: $0) }
+            DispatchQueue.main.async {
+                self.pendingContinuousImages.remove(index)
+                guard token == self.docToken else { return }
+                if let size { self.pageSizeCache[index] = size }
+                guard let image else { return }
+                self.continuousImageCache[index] = image
+                self.objectWillChange.send()
+            }
+        }
+        return nil
+    }
+
+    /// The DPI that renders a page at exactly `viewportWidth` wide — the
+    /// fit-width counterpart to `fitDPI`'s fit-both-dimensions math, used by
+    /// continuous-scroll mode where height is free to scroll off-screen.
+    private static func fitWidthDPI(pageWidth: CGFloat?, viewportWidth: CGFloat, fallback: Float) -> Float {
+        guard let pageWidth, pageWidth > 0, viewportWidth > 0 else { return fallback }
+        let dpi = Float(viewportWidth) / Float(pageWidth) * 72
+        return dpi > 0 ? dpi : fallback
+    }
+
+    /// The cached PDF-point page size, if known — `ContinuousPageRow` uses
+    /// this for placeholder aspect ratio before its own image has loaded.
+    func cachedPageSize(at index: UInt16) -> CGSize? {
+        pageSizeCache[index]
+    }
+
     // MARK: - Mutations
 
     /// Apply an operation that transforms the current bytes into new bytes,
@@ -244,12 +358,27 @@ final class PDFDocumentStore: ObservableObject {
                 let pageCount = newDoc.pageCount()
                 DispatchQueue.main.async {
                     guard token == self.docToken else { return }
+                    // Every successful mutation is a new undo checkpoint — the
+                    // bytes just about to be replaced are what a subsequent
+                    // undo() restores. A fresh edit also forks away from
+                    // whatever redo history existed (standard editor
+                    // behavior: redo only replays undos, not arbitrary future
+                    // states).
+                    self.pushUndoSnapshot(data)
+                    self.redoStack.removeAll()
                     self.data = newData
                     self.document = newDoc
                     self.thumbnailCache.removeAll()
                     self.pendingThumbnails.removeAll()
+                    self.continuousImageCache.removeAll()
+                    self.pendingContinuousImages.removeAll()
                     self.overlaysCache.removeAll()
                     self.pageSizeCache.removeAll()
+                    // A mutation can shift or remove the very text a search
+                    // match's bounding box pointed at — stale highlights are
+                    // worse than none, so clear rather than risk that.
+                    self.clearSearch()
+                    self.updateUndoRedoFlags()
                     if self.pageIndex >= pageCount {
                         self.pageIndex = pageCount > 0 ? pageCount - 1 : 0
                     }
@@ -262,6 +391,74 @@ final class PDFDocumentStore: ObservableObject {
                     self.isBusy = false
                     self.errorMessage = "\(label) failed: \(self.describe(error))"
                 }
+            }
+        }
+    }
+
+    // MARK: - Undo / redo
+
+    /// Reverts to the byte snapshot just before the last mutation, if any.
+    func undo() {
+        guard let previous = undoStack.popLast(), let current = data else { return }
+        redoStack.append(current)
+        updateUndoRedoFlags()
+        restoreSnapshot(previous)
+    }
+
+    /// Re-applies the mutation just undone, if any.
+    func redo() {
+        guard let next = redoStack.popLast(), let current = data else { return }
+        undoStack.append(current)
+        updateUndoRedoFlags()
+        restoreSnapshot(next)
+    }
+
+    private func pushUndoSnapshot(_ snapshot: Data) {
+        undoStack.append(snapshot)
+        if undoStack.count > maxUndoDepth {
+            undoStack.removeFirst(undoStack.count - maxUndoDepth)
+        }
+    }
+
+    private func updateUndoRedoFlags() {
+        canUndo = !undoStack.isEmpty
+        canRedo = !redoStack.isEmpty
+    }
+
+    private func clearUndoHistory() {
+        undoStack.removeAll()
+        redoStack.removeAll()
+        canUndo = false
+        canRedo = false
+    }
+
+    /// Reloads document state from an undo/redo snapshot — the same reload
+    /// shape as `mutate()`'s success path, minus running a transform and minus
+    /// touching the undo/redo stacks themselves (the caller already did that).
+    private func restoreSnapshot(_ newData: Data) {
+        isBusy = true
+        docToken += 1
+        renderToken += 1
+        let token = docToken
+        ffiQueue.async {
+            guard let newDoc = try? PdfDocument.fromBytes(data: newData) else { return }
+            let pageCount = newDoc.pageCount()
+            DispatchQueue.main.async {
+                guard token == self.docToken else { return }
+                self.data = newData
+                self.document = newDoc
+                self.thumbnailCache.removeAll()
+                self.pendingThumbnails.removeAll()
+                self.continuousImageCache.removeAll()
+                self.pendingContinuousImages.removeAll()
+                self.overlaysCache.removeAll()
+                self.pageSizeCache.removeAll()
+                self.clearSearch()
+                if self.pageIndex >= pageCount {
+                    self.pageIndex = pageCount > 0 ? pageCount - 1 : 0
+                }
+                self.isBusy = false
+                self.refreshAfterLoad()
             }
         }
     }
@@ -357,12 +554,61 @@ final class PDFDocumentStore: ObservableObject {
         }
     }
 
-    func extractText(completion: @escaping (String?) -> Void) {
+    /// Password-protect the current document for export, off the main
+    /// thread — this shells out to `qpdf` (see `pdfree_core::encrypt`'s
+    /// module doc comment for why `PDFium` itself can't do this), so it
+    /// never mutates `self.data`/the open document, only ever hands back a
+    /// separate encrypted byte buffer for the caller to save.
+    func exportEncrypted(password: String, completion: @escaping (Data?) -> Void) {
         guard let data else { completion(nil); return }
         ffiQueue.async {
             do {
-                let text = try toText(pdfBytes: data)
-                DispatchQueue.main.async { completion(text) }
+                let encrypted = try encryptDocument(pdfBytes: data, userPassword: password, ownerPassword: nil)
+                DispatchQueue.main.async { completion(encrypted) }
+            } catch {
+                DispatchQueue.main.async {
+                    self.errorMessage = self.describe(error)
+                    completion(nil)
+                }
+            }
+        }
+    }
+
+    /// The result of `extractDocumentText`: either the document's real,
+    /// embedded text layer, or — when there wasn't one — OCR output for just
+    /// the current page.
+    enum TextExtractionResult {
+        case documentText(String)
+        case ocrCurrentPage(String)
+    }
+
+    /// Extracts the document's real text layer; if that comes back empty (a
+    /// strong signal this is a scanned image with no text layer at all),
+    /// falls back to running OCR on the current page's rendered image
+    /// instead. Without this fallback, "Extract Text" on a scanned PDF would
+    /// just silently return nothing — the whole point of OCR support.
+    /// Scoped to the current page for the OCR path (not the whole document)
+    /// since OCR-ing every page synchronously on demand would be slow for a
+    /// large scan; the current page is what's already on screen.
+    func extractDocumentText(ocrLanguage: String = "eng", completion: @escaping (TextExtractionResult?) -> Void) {
+        guard let data else { completion(nil); return }
+        let page = pageIndex
+        ffiQueue.async {
+            let text = (try? toText(pdfBytes: data)) ?? nil
+            if let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                DispatchQueue.main.async { completion(.documentText(text)) }
+                return
+            }
+            guard let png = try? renderPage(pdfBytes: data, index: page, dpi: 300) else {
+                DispatchQueue.main.async {
+                    self.errorMessage = "No text found in this document."
+                    completion(nil)
+                }
+                return
+            }
+            do {
+                let ocrText = try aiOcrRecognize(pagePng: png, language: ocrLanguage)
+                DispatchQueue.main.async { completion(.ocrCurrentPage(ocrText)) }
             } catch {
                 DispatchQueue.main.async {
                     self.errorMessage = self.describe(error)
@@ -378,6 +624,60 @@ final class PDFDocumentStore: ObservableObject {
             let run = (try? textRunAtPoint(pdfBytes: data, page: page, x: x, y: y)) ?? nil
             DispatchQueue.main.async { completion(run) }
         }
+    }
+
+    /// Search the whole document for `query` (case-insensitive), off the
+    /// main thread. An empty query just clears any existing results rather
+    /// than round-tripping through the FFI for nothing. On success, jumps to
+    /// the first match's page automatically — same "search should just take
+    /// you there" expectation as Preview/Safari's find bar.
+    func search(query: String) {
+        guard let data, !query.isEmpty else {
+            searchMatches = []
+            currentSearchMatchIndex = nil
+            return
+        }
+        searchToken += 1
+        let token = searchToken
+        ffiQueue.async {
+            let matches = (try? findText(pdfBytes: data, query: query, caseSensitive: false)) ?? []
+            DispatchQueue.main.async {
+                guard token == self.searchToken else { return }
+                self.searchMatches = matches
+                self.currentSearchMatchIndex = matches.isEmpty ? nil : 0
+                if let first = matches.first, first.page != self.pageIndex {
+                    self.goToPage(first.page)
+                }
+            }
+        }
+    }
+
+    /// Clear search results without touching the query text itself — used
+    /// when the search bar closes, so its highlight disappears immediately.
+    func clearSearch() {
+        searchToken += 1
+        searchMatches = []
+        currentSearchMatchIndex = nil
+    }
+
+    /// Advance to the next (or, wrapping, the first) match and jump to its
+    /// page if it's not the current one.
+    func goToNextSearchMatch() {
+        guard !searchMatches.isEmpty else { return }
+        let next = ((currentSearchMatchIndex ?? -1) + 1) % searchMatches.count
+        currentSearchMatchIndex = next
+        let match = searchMatches[next]
+        if match.page != pageIndex { goToPage(match.page) }
+    }
+
+    /// Step back to the previous (or, wrapping, the last) match and jump to
+    /// its page if it's not the current one.
+    func goToPreviousSearchMatch() {
+        guard !searchMatches.isEmpty else { return }
+        let previous = ((currentSearchMatchIndex ?? 0) - 1 + searchMatches.count) % searchMatches.count
+        currentSearchMatchIndex = previous
+        let match = searchMatches[previous]
+        if match.page != pageIndex { goToPage(match.page) }
     }
 
     /// The smallest already-scanned field box enclosing a point, if any —
@@ -433,10 +733,12 @@ final class PDFDocumentStore: ObservableObject {
         ffiQueue.async {
             let fields = (try? formFields(pdfBytes: data)) ?? []
             let annos = (try? listAnnotations(pdfBytes: data)) ?? []
+            let toc = (try? outline(pdfBytes: data)) ?? []
             DispatchQueue.main.async {
                 guard token == self.docToken else { return }
                 self.formFieldsList = fields
                 self.annotationsList = annos
+                self.documentOutline = toc
             }
         }
         renderCurrentPage()

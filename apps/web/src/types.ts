@@ -27,6 +27,10 @@ export interface FormField {
   width: number;
   height: number;
   signatureKind: SignatureFieldKind;
+  /** Position within its radio button group when `kind` is `Dropdown`'s
+   * sibling `RadioButton` kind — `null` otherwise. Pass back via
+   * `FillValue`'s `Radio` variant to select this specific option. */
+  radioGroupIndex: number | null;
 }
 
 export type FillValue =

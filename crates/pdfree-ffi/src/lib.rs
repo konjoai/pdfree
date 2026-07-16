@@ -13,7 +13,8 @@ uniffi::setup_scaffolding!();
 use std::sync::Arc;
 
 use pdfree_core::{
-    annotations, boxes, convert, editor, fields, forms, pages, signatures, Document, RenderOptions,
+    annotations, bookmarks, boxes, convert, editor, fields, forms, pages, search, signatures,
+    Document, RenderOptions,
 };
 
 /// A page's size in PDF points (72/inch).
@@ -243,6 +244,10 @@ pub struct FormField {
     pub width: f32,
     pub height: f32,
     pub signature_kind: SignatureFieldKind,
+    /// This widget's position within its radio button group, when `kind` is
+    /// `RadioButton` — `None` otherwise. Pass back via `FillValue::Radio` to
+    /// select this specific option.
+    pub radio_group_index: Option<u32>,
 }
 
 impl From<forms::FormField> for FormField {
@@ -257,12 +262,15 @@ impl From<forms::FormField> for FormField {
             width: f.width,
             height: f.height,
             signature_kind: f.signature_kind.into(),
+            radio_group_index: f.radio_group_index,
         }
     }
 }
 
 /// A value to fill into a named field, scoped to what `pdfree_core::forms`
-/// can actually write: text fields and checkboxes.
+/// can actually write: text fields and checkboxes. Radio group selection was
+/// investigated and confirmed unreachable via `pdfium-render`'s public API
+/// (see `pdfree_core::forms`' module doc comment) — not exposed here.
 #[derive(Debug, Clone, uniffi::Enum)]
 pub enum FillValue {
     Text { value: String },
@@ -456,6 +464,15 @@ pub enum AnnotationKind {
     Underline,
     StrikeOut,
     Note,
+    Rectangle,
+    Circle,
+    Line,
+    Arrow,
+    Ink,
+    /// `list_annotations`-only value — see `pdfree_core::annotations`'
+    /// module doc comment for why `Rectangle`/`Circle`/`Line`/`Arrow` all
+    /// read back as this instead.
+    Shape,
 }
 
 impl From<AnnotationKind> for annotations::AnnotationKind {
@@ -465,6 +482,12 @@ impl From<AnnotationKind> for annotations::AnnotationKind {
             AnnotationKind::Underline => annotations::AnnotationKind::Underline,
             AnnotationKind::StrikeOut => annotations::AnnotationKind::StrikeOut,
             AnnotationKind::Note => annotations::AnnotationKind::Note,
+            AnnotationKind::Rectangle => annotations::AnnotationKind::Rectangle,
+            AnnotationKind::Circle => annotations::AnnotationKind::Circle,
+            AnnotationKind::Line => annotations::AnnotationKind::Line,
+            AnnotationKind::Arrow => annotations::AnnotationKind::Arrow,
+            AnnotationKind::Ink => annotations::AnnotationKind::Ink,
+            AnnotationKind::Shape => annotations::AnnotationKind::Shape,
         }
     }
 }
@@ -476,7 +499,27 @@ impl From<annotations::AnnotationKind> for AnnotationKind {
             annotations::AnnotationKind::Underline => AnnotationKind::Underline,
             annotations::AnnotationKind::StrikeOut => AnnotationKind::StrikeOut,
             annotations::AnnotationKind::Note => AnnotationKind::Note,
+            annotations::AnnotationKind::Rectangle => AnnotationKind::Rectangle,
+            annotations::AnnotationKind::Circle => AnnotationKind::Circle,
+            annotations::AnnotationKind::Line => AnnotationKind::Line,
+            annotations::AnnotationKind::Arrow => AnnotationKind::Arrow,
+            annotations::AnnotationKind::Ink => AnnotationKind::Ink,
+            annotations::AnnotationKind::Shape => AnnotationKind::Shape,
         }
+    }
+}
+
+/// A single point in PDF points, page-space — mirrors
+/// `pdfree_core::annotations::Point`.
+#[derive(Debug, Clone, Copy, PartialEq, uniffi::Record)]
+pub struct AnnotationPoint {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl From<AnnotationPoint> for annotations::Point {
+    fn from(p: AnnotationPoint) -> Self {
+        annotations::Point::new(p.x, p.y)
     }
 }
 
@@ -491,6 +534,9 @@ pub struct Annotation {
     pub height: f32,
     pub color: Option<AnnotationColor>,
     pub note: Option<String>,
+    /// Explicit geometry for `Line`/`Arrow` (exactly 2 points) and `Ink`
+    /// (2+ points) — see `pdfree_core::annotations::Annotation::points`.
+    pub points: Vec<AnnotationPoint>,
 }
 
 impl From<Annotation> for annotations::Annotation {
@@ -504,6 +550,7 @@ impl From<Annotation> for annotations::Annotation {
             height: a.height,
             color: a.color.map(Into::into),
             note: a.note,
+            points: a.points.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -625,6 +672,86 @@ pub fn replace_text(
 }
 
 // ---------------------------------------------------------------------------
+// Search (Phase 4 quick win): in-document "⌘F".
+// ---------------------------------------------------------------------------
+
+/// One run of text containing the search query at least once.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct SearchMatch {
+    pub page: u16,
+    pub text: String,
+    pub occurrences: u32,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+impl From<search::SearchMatch> for SearchMatch {
+    fn from(m: search::SearchMatch) -> Self {
+        Self {
+            page: m.page,
+            text: m.text,
+            // `occurrences` is a per-run count of query matches — bounded by
+            // how many times a short query can fit in one text run, nowhere
+            // near u32's range.
+            #[allow(clippy::cast_possible_truncation)]
+            occurrences: m.occurrences as u32,
+            x: m.x,
+            y: m.y,
+            width: m.width,
+            height: m.height,
+        }
+    }
+}
+
+/// Find every text run across the document containing `query`, in page
+/// order. An empty `query` matches nothing.
+#[uniffi::export]
+pub fn find_text(
+    pdf_bytes: Vec<u8>,
+    query: String,
+    case_sensitive: bool,
+) -> Result<Vec<SearchMatch>, PdfFreeError> {
+    Ok(search::find_text(&pdf_bytes, &query, case_sensitive)?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+// ---------------------------------------------------------------------------
+// Bookmarks (Phase 4 quick win): document outline / table of contents.
+// ---------------------------------------------------------------------------
+
+/// One node in a document's outline tree.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct Bookmark {
+    pub title: String,
+    pub page: Option<u16>,
+    pub children: Vec<Bookmark>,
+}
+
+impl From<bookmarks::Bookmark> for Bookmark {
+    fn from(b: bookmarks::Bookmark) -> Self {
+        Self {
+            title: b.title,
+            page: b.page,
+            children: b.children.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+/// Read the document's outline (bookmark tree). Returns an empty list for a
+/// document with no bookmarks — the common case, not an error.
+#[uniffi::export]
+pub fn outline(pdf_bytes: Vec<u8>) -> Result<Vec<Bookmark>, PdfFreeError> {
+    Ok(bookmarks::outline(&pdf_bytes)?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+}
+
+// ---------------------------------------------------------------------------
 // Pages (Phase 3): merge, split, rotate, extract, reorder.
 // ---------------------------------------------------------------------------
 
@@ -691,6 +818,23 @@ pub fn extract_pages(pdf_bytes: Vec<u8>, pages: Vec<u16>) -> Result<Vec<u8>, Pdf
 #[uniffi::export]
 pub fn reorder_pages(pdf_bytes: Vec<u8>, new_order: Vec<u16>) -> Result<Vec<u8>, PdfFreeError> {
     Ok(pdfree_core::pages::reorder(&pdf_bytes, &new_order)?)
+}
+
+/// Password-protect a document on export. See
+/// `pdfree_core::encrypt`'s module doc comment: this shells out to `qpdf`
+/// (not bundled) since `PDFium` itself has no encryption capability at all —
+/// the error message names `qpdf` directly if it isn't on `PATH`.
+#[uniffi::export]
+pub fn encrypt_document(
+    pdf_bytes: Vec<u8>,
+    user_password: String,
+    owner_password: Option<String>,
+) -> Result<Vec<u8>, PdfFreeError> {
+    Ok(pdfree_core::encrypt::encrypt_with_password(
+        &pdf_bytes,
+        &user_password,
+        owner_password.as_deref(),
+    )?)
 }
 
 // ---------------------------------------------------------------------------
@@ -914,10 +1058,14 @@ pub fn ai_rag_answer(
     )?)
 }
 
-/// Extract text from a scanned page image (PNG bytes) via OCR.
+/// Extract text from a scanned page image (PNG bytes) via OCR. `language` is
+/// `tesseract`'s own language-data code (`"eng"`, `"fra"`, `"deu"`, …, or
+/// `"eng+fra"` for multiple) — required, not defaulted, so a caller can't
+/// repeat the silently-English-only bug this parameter's addition fixed
+/// (see `pdfree_ai::ocr`'s module-level fix note).
 #[uniffi::export]
-pub fn ai_ocr_recognize(page_png: Vec<u8>) -> Result<String, PdfFreeError> {
-    Ok(pdfree_ai::ocr::recognize(&page_png)?)
+pub fn ai_ocr_recognize(page_png: Vec<u8>, language: String) -> Result<String, PdfFreeError> {
+    Ok(pdfree_ai::ocr::recognize(&page_png, &language)?)
 }
 
 /// One suggested field fill from [`ai_suggest_form_fills`], ready to pass

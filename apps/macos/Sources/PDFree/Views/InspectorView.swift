@@ -16,8 +16,13 @@ struct InspectorView: View {
     let onRotate: () -> Void
     let onDelete: () -> Void
     let onExport: () -> Void
+    let onExportPasswordProtected: () -> Void
+    let onPrint: () -> Void
+    let onUndo: () -> Void
+    let onRedo: () -> Void
     let onSelectSign: () -> Void
     let onAskAI: () -> Void
+    let onExtractText: () -> Void
 
     @State private var showAddMenu = false
     @State private var showDeleteConfirm = false
@@ -161,6 +166,7 @@ struct InspectorView: View {
         VStack(alignment: .leading, spacing: 2) {
             sectionLabel("AI")
             actionRow(title: "Ask AI", systemImage: "sparkles", action: onAskAI)
+            actionRow(title: "Extract Text", systemImage: "doc.text.magnifyingglass", action: onExtractText)
         }
     }
 
@@ -228,20 +234,76 @@ struct InspectorView: View {
 
     private var exportFooter: some View {
         VStack(spacing: 8) {
-            Button(action: onExport) {
-                HStack(spacing: 8) {
-                    Image(systemName: "square.and.arrow.up").font(.system(size: 15, weight: .semibold))
-                    Text("Export").font(Theme.Font.primaryButton)
+            HStack(spacing: 6) {
+                HStack(spacing: 2) {
+                    Button(action: onUndo) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Theme.Color.textRow)
+                            .frame(width: 28, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!store.canUndo)
+                    .opacity(store.canUndo ? 1 : 0.35)
+                    .help("Undo (⌘Z)")
+                    .keyboardShortcut("z", modifiers: .command)
+                    .accessibilityLabel("Undo")
+
+                    Button(action: onRedo) {
+                        Image(systemName: "arrow.uturn.forward")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Theme.Color.textRow)
+                            .frame(width: 28, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!store.canRedo)
+                    .opacity(store.canRedo ? 1 : 0.35)
+                    .help("Redo (⇧⌘Z)")
+                    .keyboardShortcut("z", modifiers: [.command, .shift])
+                    .accessibilityLabel("Redo")
                 }
-                .foregroundStyle(Theme.Color.greenInk)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(Theme.Color.green, in: RoundedRectangle(cornerRadius: 11))
-                .shadow(color: Theme.Color.green.opacity(0.7), radius: 5, y: 2)
+                .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 11))
+
+                Button(action: onPrint) {
+                    Image(systemName: "printer")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.Color.textRow)
+                        .frame(width: 44, height: 44)
+                        .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 11))
+                }
+                .buttonStyle(.plain)
+                .disabled(!store.hasDocument)
+                .opacity(store.hasDocument ? 1 : 0.45)
+                .help("Print (⌘P)")
+                .keyboardShortcut("p", modifiers: .command)
+                .accessibilityLabel("Print")
+
+                Button(action: onExport) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "square.and.arrow.up").font(.system(size: 15, weight: .semibold))
+                        Text("Export").font(Theme.Font.primaryButton)
+                    }
+                    .foregroundStyle(Theme.Color.greenInk)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Theme.Color.green, in: RoundedRectangle(cornerRadius: 11))
+                    .shadow(color: Theme.Color.green.opacity(0.7), radius: 5, y: 2)
+                }
+                .buttonStyle(.plain)
+                .disabled(!store.hasDocument)
+                .opacity(store.hasDocument ? 1 : 0.45)
+                // Password protection is a secondary/advanced path (Core UX
+                // Principle #6: nothing beyond the common path competes for
+                // attention on the default surface) — right-click for it
+                // rather than a second permanent button crowding this row.
+                .contextMenu {
+                    Button {
+                        onExportPasswordProtected()
+                    } label: {
+                        Label("Export Password-Protected PDF…", systemImage: "lock.doc")
+                    }
+                }
             }
-            .buttonStyle(.plain)
-            .disabled(!store.hasDocument)
-            .opacity(store.hasDocument ? 1 : 0.45)
 
             Text("No watermark · no limits · saved locally")
                 .font(.system(size: 10.5))

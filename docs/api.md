@@ -72,6 +72,14 @@ groups, and signature fields are readable via `forms::fields` (their
 `FieldKind` and current value come back fine) but not writable through
 `forms::fill` — that call returns `PdfError::UnsupportedFieldFill { name, kind }`
 rather than silently no-opping. See `CLAUDE.md`'s Phase 1 entry for why.
+Radio groups specifically were investigated *in depth* (not just doc-read):
+`PdfFormRadioButtonField::set_checked()` compiles and looks like a real
+setter, but verified against a real fixture that it only echoes a widget's
+*already-current* `/AS` up to the shared `/V` — it can't establish a new
+selection from a byte-in/byte-out call with no prior interactive click. Each
+radio widget's `FormField.radio_group_index` (its position within the group)
+is still exposed, since reading which option is currently selected and
+displaying the group's options is unaffected by that gap.
 
 **Known gap**: `fill()` has no way to bake in a deterministic "fit once" font
 size for a text field — confirmed against `pdfium-render` 0.8.37's source

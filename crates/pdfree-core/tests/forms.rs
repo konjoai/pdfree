@@ -18,6 +18,11 @@ const FORM_SAMPLE: &[u8] = include_bytes!("fixtures/form_sample.pdf");
 /// The real, unmodified IRS Form 1040 (fetched from irs.gov), per the project
 /// convention of testing against real-world PDFs, not just synthetic fixtures.
 const IRS_F1040: &[u8] = include_bytes!("fixtures/irs_f1040.pdf");
+/// A 2-widget radio button group (generated via `pypdf`), used to verify
+/// `radio_group_index` and to document — via a real fill attempt, not just a
+/// doc comment — that radio selection is confirmed unreachable through
+/// `pdfium-render`'s public API (see `forms`' module doc comment).
+const RADIO_SAMPLE: &[u8] = include_bytes!("fixtures/radio_sample.pdf");
 
 fn pdfium_available() -> bool {
     pdfree_core::pdfium::bind().is_ok()
@@ -317,4 +322,58 @@ fn overlay_rejects_a_non_positive_font_size() {
     .expect_err("zero font_size is invalid");
 
     assert!(matches!(err, PdfError::InvalidOverlay(_)), "got {err:?}");
+}
+
+#[test]
+fn radio_widgets_report_their_position_within_the_group() {
+    skip_without_pdfium!();
+
+    let found = forms::fields(RADIO_SAMPLE).expect("enumerate fields");
+    assert_eq!(found.len(), 2, "fixture has two radio widgets in one group");
+    assert!(found.iter().all(|f| f.kind == FieldKind::RadioButton));
+    assert!(
+        found.iter().all(|f| f.name == "Choice"),
+        "one shared group name"
+    );
+
+    let mut indices: Vec<u32> = found.iter().map(|f| f.radio_group_index.unwrap()).collect();
+    indices.sort_unstable();
+    assert_eq!(
+        indices,
+        vec![0, 1],
+        "each widget has a distinct group position"
+    );
+}
+
+#[test]
+fn non_radio_fields_report_no_group_index() {
+    skip_without_pdfium!();
+
+    let found = forms::fields(FORM_SAMPLE).expect("enumerate fields");
+    assert!(found.iter().all(|f| f.radio_group_index.is_none()));
+}
+
+#[test]
+fn fill_rejects_a_radio_group_as_unsupported() {
+    skip_without_pdfium!();
+
+    // Confirmed unreachable, not merely unimplemented — see `forms`' module
+    // doc comment: `pdfium-render`'s `set_checked()` can only echo a radio
+    // widget's already-current `/AS` back to the group `/V`, it can't
+    // establish a new selection from a headless byte-in/byte-out call. This
+    // must keep failing loudly rather than silently no-op.
+    let err = forms::fill(
+        RADIO_SAMPLE,
+        &[("Choice".to_string(), FillValue::Text("OptionB".to_string()))],
+    )
+    .expect_err("radio groups cannot be filled through this API");
+
+    assert!(
+        matches!(
+            &err,
+            PdfError::UnsupportedFieldFill { name, kind }
+                if name == "Choice" && *kind == FieldKind::RadioButton
+        ),
+        "got {err:?}"
+    );
 }

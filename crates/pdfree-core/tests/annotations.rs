@@ -8,7 +8,7 @@
 //! — the production-code ban only applies to `pdfree-core`'s library surface.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use pdfree_core::annotations::{self, Annotation, AnnotationKind, Color};
+use pdfree_core::annotations::{self, Annotation, AnnotationKind, Color, Point};
 use pdfree_core::error::PdfError;
 use pdfree_core::{Document, RenderOptions};
 
@@ -39,6 +39,7 @@ fn markup(kind: AnnotationKind, color: Option<Color>, note: Option<&str>) -> Ann
         height: 20.0,
         color,
         note: note.map(str::to_string),
+        points: Vec::new(),
     }
 }
 
@@ -68,6 +69,7 @@ fn adds_and_reads_back_all_four_annotation_kinds() {
                 height: 24.0,
                 color: None,
                 note: Some("reviewer comment".to_string()),
+                points: Vec::new(),
             },
         ],
     )
@@ -134,6 +136,7 @@ fn sticky_note_renders_visibly() {
             height: 24.0,
             color: None,
             note: Some("hello".to_string()),
+            points: Vec::new(),
         }],
     )
     .expect("annotate");
@@ -170,5 +173,215 @@ fn annotate_rejects_a_non_positive_size() {
     let mut bad = markup(AnnotationKind::Highlight, None, None);
     bad.width = 0.0;
     let err = annotations::annotate(SAMPLE, &[bad]).expect_err("zero width is invalid");
+    assert!(matches!(err, PdfError::InvalidAnnotation(_)), "got {err:?}");
+}
+
+fn shape(kind: AnnotationKind, x: f32, y: f32, width: f32, height: f32) -> Annotation {
+    Annotation {
+        page: 0,
+        kind,
+        x,
+        y,
+        width,
+        height,
+        color: None,
+        note: None,
+        points: Vec::new(),
+    }
+}
+
+fn line_like(kind: AnnotationKind, points: Vec<Point>) -> Annotation {
+    Annotation {
+        page: 0,
+        kind,
+        x: 0.0,
+        y: 0.0,
+        width: 0.0,
+        height: 0.0,
+        color: None,
+        note: None,
+        points,
+    }
+}
+
+/// Unlike highlight/underline/strikeout, shapes and ink draw real vector
+/// path objects (see the module doc comment) — so they must actually change
+/// rendered pixels, not just round-trip through `list()`.
+#[test]
+fn rectangle_renders_visibly_and_lists_back_as_shape() {
+    skip_without_pdfium!();
+
+    let annotated = annotations::annotate(
+        SAMPLE,
+        &[shape(AnnotationKind::Rectangle, 72.0, 600.0, 100.0, 50.0)],
+    )
+    .expect("annotate rectangle");
+
+    let before = Document::from_bytes(SAMPLE.to_vec(), None).unwrap();
+    let after = Document::from_bytes(annotated.clone(), None).unwrap();
+    let png_before = before
+        .render_page(0, &RenderOptions::with_dpi(150.0))
+        .unwrap();
+    let png_after = after
+        .render_page(0, &RenderOptions::with_dpi(150.0))
+        .unwrap();
+    assert_ne!(png_before, png_after, "the rectangle must render");
+
+    let found = annotations::list(&annotated).expect("list after annotate");
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].kind, AnnotationKind::Shape);
+}
+
+#[test]
+fn circle_renders_visibly() {
+    skip_without_pdfium!();
+
+    let annotated = annotations::annotate(
+        SAMPLE,
+        &[shape(AnnotationKind::Circle, 72.0, 600.0, 100.0, 100.0)],
+    )
+    .expect("annotate circle");
+
+    let before = Document::from_bytes(SAMPLE.to_vec(), None).unwrap();
+    let after = Document::from_bytes(annotated, None).unwrap();
+    let png_before = before
+        .render_page(0, &RenderOptions::with_dpi(150.0))
+        .unwrap();
+    let png_after = after
+        .render_page(0, &RenderOptions::with_dpi(150.0))
+        .unwrap();
+    assert_ne!(png_before, png_after, "the circle must render");
+}
+
+#[test]
+fn line_renders_visibly_and_lists_back_as_shape() {
+    skip_without_pdfium!();
+
+    let annotated = annotations::annotate(
+        SAMPLE,
+        &[line_like(
+            AnnotationKind::Line,
+            vec![Point::new(72.0, 600.0), Point::new(200.0, 650.0)],
+        )],
+    )
+    .expect("annotate line");
+
+    let before = Document::from_bytes(SAMPLE.to_vec(), None).unwrap();
+    let after = Document::from_bytes(annotated.clone(), None).unwrap();
+    let png_before = before
+        .render_page(0, &RenderOptions::with_dpi(150.0))
+        .unwrap();
+    let png_after = after
+        .render_page(0, &RenderOptions::with_dpi(150.0))
+        .unwrap();
+    assert_ne!(png_before, png_after, "the line must render");
+
+    let found = annotations::list(&annotated).expect("list after annotate");
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].kind, AnnotationKind::Shape);
+}
+
+#[test]
+fn arrow_renders_visibly_and_covers_a_larger_area_than_a_bare_line() {
+    skip_without_pdfium!();
+
+    let points = vec![Point::new(72.0, 600.0), Point::new(200.0, 650.0)];
+
+    let line_bytes =
+        annotations::annotate(SAMPLE, &[line_like(AnnotationKind::Line, points.clone())])
+            .expect("annotate line");
+    let arrow_bytes = annotations::annotate(SAMPLE, &[line_like(AnnotationKind::Arrow, points)])
+        .expect("annotate arrow");
+
+    let line_found = annotations::list(&line_bytes).expect("list line");
+    let arrow_found = annotations::list(&arrow_bytes).expect("list arrow");
+
+    // The arrowhead extends the bounding box beyond the bare line/line's,
+    // confirming the triangle path object was actually added, not just the
+    // shaft (a real geometric check, not merely "some bytes differ").
+    let line_area = line_found[0].width * line_found[0].height;
+    let arrow_area = arrow_found[0].width * arrow_found[0].height;
+    assert!(
+        arrow_area > line_area,
+        "arrow bounding box ({arrow_area}) should exceed the bare line's ({line_area})"
+    );
+
+    let before = Document::from_bytes(SAMPLE.to_vec(), None).unwrap();
+    let after = Document::from_bytes(arrow_bytes, None).unwrap();
+    let png_before = before
+        .render_page(0, &RenderOptions::with_dpi(150.0))
+        .unwrap();
+    let png_after = after
+        .render_page(0, &RenderOptions::with_dpi(150.0))
+        .unwrap();
+    assert_ne!(png_before, png_after, "the arrow must render");
+}
+
+#[test]
+fn ink_freehand_stroke_renders_visibly_and_lists_back_as_ink() {
+    skip_without_pdfium!();
+
+    let stroke = vec![
+        Point::new(72.0, 600.0),
+        Point::new(90.0, 620.0),
+        Point::new(110.0, 590.0),
+        Point::new(130.0, 610.0),
+    ];
+    let annotated = annotations::annotate(SAMPLE, &[line_like(AnnotationKind::Ink, stroke)])
+        .expect("annotate ink");
+
+    let before = Document::from_bytes(SAMPLE.to_vec(), None).unwrap();
+    let after = Document::from_bytes(annotated.clone(), None).unwrap();
+    let png_before = before
+        .render_page(0, &RenderOptions::with_dpi(150.0))
+        .unwrap();
+    let png_after = after
+        .render_page(0, &RenderOptions::with_dpi(150.0))
+        .unwrap();
+    assert_ne!(png_before, png_after, "the freehand stroke must render");
+
+    let found = annotations::list(&annotated).expect("list after annotate");
+    assert_eq!(found.len(), 1);
+    assert_eq!(
+        found[0].kind,
+        AnnotationKind::Ink,
+        "ink is a real, distinct PdfPageAnnotationType — unlike the Stamp-backed shapes, \
+         it round-trips through list() as itself"
+    );
+}
+
+#[test]
+fn line_rejects_a_point_count_other_than_two() {
+    skip_without_pdfium!();
+
+    let err = annotations::annotate(
+        SAMPLE,
+        &[line_like(AnnotationKind::Line, vec![Point::new(0.0, 0.0)])],
+    )
+    .expect_err("a line needs exactly 2 points");
+    assert!(matches!(err, PdfError::InvalidAnnotation(_)), "got {err:?}");
+}
+
+#[test]
+fn ink_rejects_fewer_than_two_points() {
+    skip_without_pdfium!();
+
+    let err = annotations::annotate(
+        SAMPLE,
+        &[line_like(AnnotationKind::Ink, vec![Point::new(0.0, 0.0)])],
+    )
+    .expect_err("ink needs at least 2 points");
+    assert!(matches!(err, PdfError::InvalidAnnotation(_)), "got {err:?}");
+}
+
+#[test]
+fn annotate_rejects_shape_as_a_direct_input() {
+    skip_without_pdfium!();
+
+    let err = annotations::annotate(
+        SAMPLE,
+        &[shape(AnnotationKind::Shape, 72.0, 600.0, 50.0, 50.0)],
+    )
+    .expect_err("Shape is a list()-only value, not a valid annotate() input");
     assert!(matches!(err, PdfError::InvalidAnnotation(_)), "got {err:?}");
 }

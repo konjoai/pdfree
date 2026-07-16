@@ -142,6 +142,7 @@ mod tests {
             width: 100.0,
             height: 20.0,
             signature_kind: SignatureFieldKind::None,
+            radio_group_index: None,
         }
     }
 
