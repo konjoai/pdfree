@@ -61,23 +61,6 @@ pub fn render_page_to_png(
     index: u16,
     options: &RenderOptions,
 ) -> Result<Vec<u8>> {
-    let pdfium = crate::pdfium::bind()?;
-    let document = pdfium.load_pdf_from_byte_slice(pdf_bytes, None)?;
-    render_loaded_page_to_png(&document, index, options)
-}
-
-/// Same as [`render_page_to_png`], but works from an already-bound `PDFium`
-/// document rather than binding and re-parsing `pdf_bytes` itself. Exists so
-/// [`crate::pageview`] can gather a rendered page *and* its detected boxes
-/// from a single bind + parse instead of two. See
-/// [`crate::boxes::boxes_on_loaded_page`]'s doc comment for why this must
-/// only ever be called with a freshly-bound `document`, never one reused
-/// across a different prior document load.
-pub(crate) fn render_loaded_page_to_png(
-    document: &PdfDocument,
-    index: u16,
-    options: &RenderOptions,
-) -> Result<Vec<u8>> {
     if !(options.dpi.is_finite() && options.dpi > 0.0) {
         return Err(PdfError::InvalidRenderTarget(format!(
             "dpi must be a positive, finite number (got {})",
@@ -85,6 +68,8 @@ pub(crate) fn render_loaded_page_to_png(
         )));
     }
 
+    let pdfium = crate::pdfium::bind()?;
+    let document = pdfium.load_pdf_from_byte_slice(pdf_bytes, None)?;
     let pages = document.pages();
 
     let count = pages.len();
