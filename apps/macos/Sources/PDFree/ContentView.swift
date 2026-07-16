@@ -292,6 +292,22 @@ struct ContentView: View {
             if let overlay = store.fieldOverlay(containingX: Float(point.x), y: Float(point.y)) {
                 if overlay.isSignature {
                     beginSigningOverlay(overlay)
+                } else if let field = matchingField(overlay), field.kind == .checkbox {
+                    // Toggle in place — a checkbox has no text to type, so
+                    // opening the inline text caret here (the previous
+                    // behavior) let you "type into" a checkbox, which did
+                    // nothing useful and looked broken.
+                    commitInlineEdit()
+                    let isChecked = field.value == "true"
+                    store.applyFormFill([FieldFill(name: field.name, value: .checkbox(checked: !isChecked))])
+                } else if let field = matchingField(overlay), field.kind != .text {
+                    // Radio groups, dropdowns, list boxes: pdfium-render has
+                    // no public setter for them yet (see forms.rs), so
+                    // there's nothing to do inline — but don't open a text
+                    // caret either, since typing into one doesn't set its
+                    // real value. "Fill fields" in the inspector at least
+                    // shows the field's current value read-only.
+                    commitInlineEdit()
                 } else if isEditing(overlay.box) {
                     // Same field already open (e.g. a click to reposition
                     // the caret) — leave the in-progress text alone rather
