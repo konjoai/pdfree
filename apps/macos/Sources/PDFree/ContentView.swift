@@ -1,4 +1,5 @@
 import AppKit
+import PDFKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -17,9 +18,10 @@ private enum ActiveSheet: Identifiable {
     case note(CGPoint)
     case editText(TextRun)
     case fillForm
-    case extractedText(String)
+    case extractedText(String, viaOCR: Bool)
     case splitRanges
     case aiAssistant
+    case exportPassword
 
     var id: String {
         switch self {
@@ -32,6 +34,7 @@ private enum ActiveSheet: Identifiable {
         case .extractedText: return "extractedText"
         case .splitRanges: return "splitRanges"
         case .aiAssistant: return "aiAssistant"
+        case .exportPassword: return "exportPassword"
         }
     }
 }
@@ -71,6 +74,9 @@ struct ContentView: View {
     /// past it) and cleared once the delayed advance folds it into
     /// `signSession.completedNames`.
     @State private var justSignedFieldNames: Set<String> = []
+    @State private var isSearchVisible = false
+    @State private var searchQuery = ""
+    @FocusState private var isSearchFieldFocused: Bool
 
     /// Fallback box size (PDF points) when double-clicking finds no drawn
     /// rectangle or ruled-line cell to snap to.
@@ -97,8 +103,12 @@ struct ContentView: View {
                         onRotate: { store.rotate(page: store.pageIndex, rotation: .clockwise90) },
                         onDelete: { store.deletePage(store.pageIndex) },
                         onExport: exportDocument,
+                        onExportPasswordProtected: { activeSheet = .exportPassword },
+                        onPrint: printDocument,
+                        onUndo: { store.undo() }, onRedo: { store.redo() },
                         onSelectSign: { beginSigning(from: nil) },
-                        onAskAI: { activeSheet = .aiAssistant }
+                        onAskAI: { activeSheet = .aiAssistant },
+                        onExtractText: extractDocumentText
                     )
                     .frame(minWidth: Theme.Metric.inspectorWidth, idealWidth: Theme.Metric.inspectorWidth, maxWidth: Theme.Metric.inspectorWidth)
                 }
@@ -109,6 +119,7 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
         .onChange(of: store.pageIndex) { _ in commitInlineEdit() }
         .onChange(of: tool) { _ in commitInlineEdit() }
+        .onChange(of: searchQuery) { store.search(query: $0) }
         .sheet(item: $activeSheet) { sheet in sheetView(for: sheet) }
         .alert("Error", isPresented: errorBinding) {
             Button("OK", role: .cancel) {}
@@ -165,7 +176,16 @@ struct ContentView: View {
                     center: .init(x: 0.5, y: 0), startRadius: 1, endRadius: 900
                 )
 
-                if let image = store.pageImage {
+                if store.hasDocument, store.pageViewMode == .continuous {
+                    ContinuousScrollView(
+                        store: store,
+                        viewportWidth: max(geo.size.width - Self.canvasPadding * 2, 0)
+                    )
+                    .padding(.horizontal, Self.canvasPadding)
+
+                    searchTriggerChip
+                    pageNavBar
+                } else if let image = store.pageImage {
                     ScrollView([.horizontal, .vertical]) {
                         PageCanvasView(
                             image: image,
@@ -174,6 +194,7 @@ struct ContentView: View {
                             fieldOverlays: visibleFieldOverlays,
                             onTap: handleTap,
                             onDrag: handleDrag,
+                            onFreehandDrag: handleFreehandDrag,
                             onDoubleTap: handleDoubleTap,
                             inlineEditBox: inlineEditBox,
                             inlineEditText: $inlineEditText,
@@ -181,7 +202,8 @@ struct ContentView: View {
                             onCancelInlineEdit: cancelInlineEdit,
                             signAnchorBox: signAnchorBox,
                             signOverlay: signOverlayView,
-                            onSignBackgroundTap: (signSession?.done == true) ? dismissSign : nil
+                            onSignBackgroundTap: (signSession?.done == true) ? dismissSign : nil,
+                            searchHighlightBox: searchHighlightBox
                         )
                         .shadow(color: .black.opacity(0.55), radius: 25, y: 18)
                         .padding(Self.canvasPadding)
@@ -193,6 +215,7 @@ struct ContentView: View {
                     .id("\(store.fileURL?.path ?? "") #\(store.pageIndex)")
 
                     fieldCountChip
+                    searchTriggerChip
                     pageNavBar
                 } else {
                     ProgressView("Loading…").tint(.white)
@@ -200,8 +223,10 @@ struct ContentView: View {
             }
             .overlay {
                 // Scroll/swipe over the canvas turns pages (pass-through, so
-                // clicks and drags still reach the page).
-                if store.hasDocument {
+                // clicks and drags still reach the page). Continuous-scroll
+                // mode has its own native ScrollView handling scroll input
+                // directly — layering this on top would fight it.
+                if store.hasDocument, store.pageViewMode == .single {
                     ScrollPageFlipper(
                         onNext: { store.goToPage(store.pageIndex &+ 1) },
                         onPrev: { if store.pageIndex > 0 { store.goToPage(store.pageIndex &- 1) } }
@@ -215,10 +240,61 @@ struct ContentView: View {
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             }
+            .overlay(alignment: .top) {
+                if isSearchVisible {
+                    SearchBar(store: store, query: $searchQuery, isFocused: $isSearchFieldFocused, onClose: closeSearch)
+                        .padding(.top, 14)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
             .animation(.easeInOut(duration: 0.16), value: tool.isAnnotation)
+            .animation(.easeInOut(duration: 0.15), value: isSearchVisible)
             .onAppear { updateViewport(geo.size) }
             .onChange(of: geo.size) { updateViewport($0) }
         }
+    }
+
+    /// Small circular trigger, mirroring `fieldCountChip`'s corner on the
+    /// opposite side — carries the actual ⌘F shortcut, so the shortcut
+    /// works as soon as a document is open without needing prior focus
+    /// anywhere in particular.
+    private var searchTriggerChip: some View {
+        VStack {
+            HStack {
+                Spacer()
+                Button {
+                    isSearchVisible = true
+                    isSearchFieldFocused = true
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.Color.textMid2)
+                        .padding(9)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.09)))
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut("f", modifiers: .command)
+                .help("Find in Document (⌘F)")
+                .padding(18)
+            }
+            Spacer()
+        }
+    }
+
+    private func closeSearch() {
+        isSearchVisible = false
+        searchQuery = ""
+        store.clearSearch()
+    }
+
+    /// The current match's box, converted for `PageCanvasView`, but only
+    /// when that match is actually on the page being displayed right now.
+    private var searchHighlightBox: DetectedBox? {
+        guard let index = store.currentSearchMatchIndex, index < store.searchMatches.count else { return nil }
+        let match = store.searchMatches[index]
+        guard match.page == store.pageIndex else { return nil }
+        return DetectedBox(page: match.page, x: match.x, y: match.y, width: match.width, height: match.height)
     }
 
     private var fieldCountChip: some View {
@@ -255,13 +331,26 @@ struct ContentView: View {
             Spacer()
             HStack(spacing: 2) {
                 Button { store.goToPage(store.pageIndex &- 1) } label: { Image(systemName: "chevron.left") }
-                    .disabled(store.pageIndex == 0)
+                    .disabled(store.pageIndex == 0 || store.pageViewMode == .continuous)
                 Text("\(store.pageIndex + 1) / \(store.pageCount)")
                     .font(Theme.Font.pageNav).monospacedDigit()
                     .foregroundStyle(Theme.Color.textHigh)
                     .padding(.horizontal, 6)
                 Button { store.goToPage(store.pageIndex &+ 1) } label: { Image(systemName: "chevron.right") }
-                    .disabled(store.pageIndex + 1 >= store.pageCount)
+                    .disabled(store.pageIndex + 1 >= store.pageCount || store.pageViewMode == .continuous)
+
+                Divider().frame(height: 12).padding(.horizontal, 4)
+
+                Button {
+                    store.pageViewMode = store.pageViewMode == .single ? .continuous : .single
+                } label: {
+                    Image(systemName: store.pageViewMode == .continuous ? "square.stack" : "doc")
+                }
+                .help(
+                    store.pageViewMode == .continuous
+                        ? "Switch to Single Page view" : "Switch to Continuous Scroll view"
+                )
+                .accessibilityLabel(store.pageViewMode == .continuous ? "Single Page view" : "Continuous Scroll view")
             }
             .buttonStyle(.plain)
             .foregroundStyle(Theme.Color.textMid2)
@@ -292,6 +381,22 @@ struct ContentView: View {
             if let overlay = store.fieldOverlay(containingX: Float(point.x), y: Float(point.y)) {
                 if overlay.isSignature {
                     beginSigningOverlay(overlay)
+                } else if let field = matchingField(overlay), field.kind == .checkbox {
+                    // Toggle in place — a checkbox has no text to type, so
+                    // opening the inline text caret here (the previous
+                    // behavior) let you "type into" a checkbox, which did
+                    // nothing useful and looked broken.
+                    commitInlineEdit()
+                    let isChecked = field.value == "true"
+                    store.applyFormFill([FieldFill(name: field.name, value: .checkbox(checked: !isChecked))])
+                } else if let field = matchingField(overlay), field.kind != .text {
+                    // Radio groups, dropdowns, list boxes: pdfium-render has
+                    // no public setter for them yet (see forms.rs), so
+                    // there's nothing to do inline — but don't open a text
+                    // caret either, since typing into one doesn't set its
+                    // real value. "Fill fields" in the inspector at least
+                    // shows the field's current value read-only.
+                    commitInlineEdit()
                 } else if isEditing(overlay.box) {
                     // Same field already open (e.g. a click to reposition
                     // the caret) — leave the in-progress text alone rather
@@ -338,8 +443,10 @@ struct ContentView: View {
                     store.errorMessage = "No text found at that point."
                 }
             }
-        case .highlight, .underline, .strikeout:
+        case .highlight, .underline, .strikeout, .rectangle, .circle, .line, .arrow:
             break // handled by handleDrag
+        case .ink:
+            break // handled by handleFreehandDrag
         }
     }
 
@@ -361,8 +468,28 @@ struct ContentView: View {
         case .highlight: kind = .highlight
         case .underline: kind = .underline
         case .strikeout: kind = .strikeOut
+        case .rectangle: kind = .rectangle
+        case .circle: kind = .circle
+        case .line: kind = .line
+        case .arrow: kind = .arrow
         default: return
         }
+
+        if tool.isLineBased {
+            // Line/Arrow need the actual drag direction, not a reordered
+            // bounding box — a diagonal from bottom-left to top-right must
+            // stay that diagonal, not become a rectangle's min/max corners.
+            guard hypot(end.x - start.x, end.y - start.y) > 1 else { return }
+            store.applyAnnotation(Annotation(
+                page: store.pageIndex, kind: kind,
+                x: 0, y: 0, width: 0, height: 0,
+                color: nil, note: nil,
+                points: [AnnotationPoint(x: Float(start.x), y: Float(start.y)),
+                         AnnotationPoint(x: Float(end.x), y: Float(end.y))]
+            ))
+            return
+        }
+
         let rect = CGRect(
             x: min(start.x, end.x), y: min(start.y, end.y),
             width: abs(end.x - start.x), height: abs(end.y - start.y)
@@ -372,7 +499,19 @@ struct ContentView: View {
             page: store.pageIndex, kind: kind,
             x: Float(rect.minX), y: Float(rect.minY),
             width: Float(rect.width), height: Float(rect.height),
-            color: nil, note: nil
+            color: nil, note: nil, points: []
+        ))
+    }
+
+    /// Commits a completed `.ink` freehand stroke — `points` are already in
+    /// PDF-point space (`PageCanvasView` converts them before calling this).
+    private func handleFreehandDrag(_ points: [CGPoint]) {
+        guard points.count > 1 else { return }
+        store.applyAnnotation(Annotation(
+            page: store.pageIndex, kind: .ink,
+            x: 0, y: 0, width: 0, height: 0,
+            color: nil, note: nil,
+            points: points.map { AnnotationPoint(x: Float($0.x), y: Float($0.y)) }
         ))
     }
 
@@ -604,7 +743,7 @@ struct ContentView: View {
                 store.applyAnnotation(Annotation(
                     page: store.pageIndex, kind: .note,
                     x: Float(point.x), y: Float(point.y), width: 24, height: 24,
-                    color: nil, note: text
+                    color: nil, note: text, points: []
                 ))
                 activeSheet = nil
             } onCancel: {
@@ -624,8 +763,8 @@ struct ContentView: View {
         case .fillForm:
             FormsPanel(store: store) { activeSheet = nil }
 
-        case .extractedText(let text):
-            ExtractedTextSheet(text: text) { activeSheet = nil }
+        case .extractedText(let text, let viaOCR):
+            ExtractedTextSheet(text: text, viaOCR: viaOCR) { activeSheet = nil }
 
         case .splitRanges:
             SplitSheet(pageCount: store.pageCount) { ranges in
@@ -641,6 +780,17 @@ struct ContentView: View {
             if let data = store.data {
                 AIPanel(pdfBytes: data, documentTitle: store.title) { activeSheet = nil }
             }
+
+        case .exportPassword:
+            PasswordExportSheet(
+                onExport: { password in
+                    activeSheet = nil
+                    store.exportEncrypted(password: password) { encrypted in
+                        if let encrypted { saveExportedData(encrypted) }
+                    }
+                },
+                onCancel: { activeSheet = nil }
+            )
         }
     }
 
@@ -666,6 +816,31 @@ struct ContentView: View {
 
     private func exportDocument() {
         guard let data = store.data else { return }
+        saveExportedData(data)
+    }
+
+    /// Extracts the document's real text layer, falling back to OCR on the
+    /// current page when there isn't one (see
+    /// `PDFDocumentStore.extractDocumentText`) — this is the only place OCR
+    /// is reachable from the UI today.
+    private func extractDocumentText() {
+        store.extractDocumentText { result in
+            switch result {
+            case .documentText(let text):
+                activeSheet = .extractedText(text, viaOCR: false)
+            case .ocrCurrentPage(let text):
+                activeSheet = .extractedText(text, viaOCR: true)
+            case nil:
+                break // store already set errorMessage
+            }
+        }
+    }
+
+    /// Shared save-panel flow for both the plain export and the
+    /// password-protected export (which produces its own, separate
+    /// encrypted `Data` rather than reusing `store.data` — see
+    /// `PDFDocumentStore.exportEncrypted`).
+    private func saveExportedData(_ data: Data) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.pdf]
         panel.nameFieldStringValue = store.fileURL?.lastPathComponent ?? "Untitled.pdf"
@@ -676,6 +851,22 @@ struct ContentView: View {
                 store.errorMessage = "\(error)"
             }
         }
+    }
+
+    /// PDFKit only, and only for the printed-out bytes: `PDFDocument` here is
+    /// a throwaway view over `store.data` purely to reach
+    /// `printOperation(for:scalingMode:autoRotate:)`, which hands back a real
+    /// `NSPrintOperation` (paging, scaling, the native print panel) for
+    /// free — SwiftUI has no print API of its own, and pdfree-core's own
+    /// PDFium-backed rendering isn't what's on screen here. Every other part
+    /// of the app (render, edit, sign, …) still goes through pdfree-core;
+    /// nothing about the document's actual handling changes.
+    private func printDocument() {
+        guard let data = store.data, let pdfDocument = PDFDocument(data: data) else { return }
+        guard let printOperation = pdfDocument.printOperation(
+            for: NSPrintInfo.shared, scalingMode: .pageScaleToFit, autoRotate: true
+        ) else { return }
+        printOperation.run()
     }
 
     private func mergeDocument() {

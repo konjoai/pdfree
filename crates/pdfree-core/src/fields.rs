@@ -246,8 +246,11 @@ fn label_runs(loaded: &PdfPage<'_>) -> Vec<LabelRun> {
 }
 
 /// Find the closest qualifying label for a field box, if any: a text run
-/// immediately to the field's left on the same line (`Name: ____`), or one
-/// sitting just above it (a column header). Returns the label text, trimmed
+/// immediately to the field's left on the same line (`Name: ____`), one
+/// sitting just above it (a column header), or one immediately to its right
+/// (`☐ Yes` — the standard checkbox-then-label layout, common enough on real
+/// forms that skipping it silently drops every such checkbox from a flat
+/// form with no backing `AcroForm` widget). Returns the label text, trimmed
 /// of a trailing colon. A run whose center falls *inside* the box is treated
 /// as the field's own content, never a label.
 fn best_label(bx: f32, by: f32, bw: f32, bh: f32, runs: &[LabelRun]) -> Option<String> {
@@ -260,10 +263,12 @@ fn best_label(bx: f32, by: f32, bw: f32, bh: f32, runs: &[LabelRun]) -> Option<S
         if run_is_box_content(run, bx, by, bw, bh) {
             continue;
         }
-        // The run's distance to the box if it qualifies as a left-hand label
-        // or a column header above — the nearest of the two if both apply.
+        // The run's distance to the box if it qualifies as a left-hand
+        // label, a right-hand label, or a column header above — the
+        // nearest of the three if more than one applies.
         let distance = [
             left_label_gap(run, bx, by, bh),
+            right_label_gap(run, bx, by, bw, bh),
             above_label_gap(run, bx, by, bw, bh),
         ]
         .into_iter()
@@ -301,6 +306,21 @@ fn left_label_gap(run: &LabelRun, bx: f32, by: f32, bh: f32) -> Option<f32> {
         && bands_overlap(by, by + bh, run.y, run.y + run.height)
     {
         Some(left_gap.max(0.0))
+    } else {
+        None
+    }
+}
+
+/// The gap (in points, `>= 0`) from the box's right edge to `run`'s left edge
+/// if `run` qualifies as a right-hand label — the mirror image of
+/// [`left_label_gap`], for the `☐ Yes` checkbox-then-label pattern. `None` if
+/// it doesn't qualify.
+fn right_label_gap(run: &LabelRun, bx: f32, by: f32, bw: f32, bh: f32) -> Option<f32> {
+    let right_gap = run.x - (bx + bw);
+    if (-ALIGN_PAD..=MAX_LEFT_GAP).contains(&right_gap)
+        && bands_overlap(by, by + bh, run.y, run.y + run.height)
+    {
+        Some(right_gap.max(0.0))
     } else {
         None
     }
@@ -593,6 +613,43 @@ mod tests {
                                                        // A run one band down that still overlaps — kills mutating the box's
                                                        // top-of-band `by + bh` into `by - bh`.
         assert_eq!(lg(50.0, 310.0, 40.0, 10.0), Some(10.0));
+    }
+
+    #[test]
+    fn right_label_gap_qualifies_a_run_just_right_and_aligned() {
+        // Box right edge x=150 (bx=100, bw=50), band y in [300,314] — the
+        // mirror image of left_label_gap_qualifies_a_run_just_left_and_aligned.
+        let rg = |x, y, w, h| right_label_gap(&run("Yes", x, y, w, h), 100.0, 300.0, 50.0, 14.0);
+        // Starts 10pt right of the box, same line → gap 10.
+        assert_eq!(rg(160.0, 300.0, 40.0, 10.0), Some(10.0));
+        // Starts right at the box's right edge (gap 0), and slightly left of
+        // it (to −ALIGN_PAD) still qualifies, clamped to 0.
+        assert_eq!(rg(150.0, 300.0, 40.0, 10.0), Some(0.0));
+        assert_eq!(rg(147.0, 300.0, 40.0, 10.0), Some(0.0)); // right_gap = −3 (== −PAD)
+                                                             // Overlapping the box by more than the pad → not a right label.
+        assert_eq!(rg(145.0, 300.0, 40.0, 10.0), None); // right_gap = −5
+                                                        // Exactly at the max reach vs one point beyond it.
+        assert_eq!(rg(210.0, 300.0, 40.0, 10.0), Some(60.0)); // right_gap = 60
+        assert_eq!(rg(211.0, 300.0, 40.0, 10.0), None); // right_gap = 61
+                                                        // Right distance, wrong line (vertical bands don't overlap).
+        assert_eq!(rg(160.0, 100.0, 40.0, 10.0), None); // band well below
+        assert_eq!(rg(160.0, 320.0, 40.0, 10.0), None); // band just above
+        assert_eq!(rg(160.0, 400.0, 40.0, 10.0), None); // band far above
+                                                        // A run one band down that still overlaps.
+        assert_eq!(rg(160.0, 310.0, 40.0, 10.0), Some(10.0));
+    }
+
+    #[test]
+    fn best_label_finds_a_checkbox_style_label_to_the_right() {
+        // "☐ Yes" layout: the box (a checkbox) sits at x in [100,114], and
+        // its label starts just to the right on the same line — the pattern
+        // `left`/`above` alone can't see, since the label is neither to the
+        // left nor above.
+        let runs = vec![run("Yes", 120.0, 300.0, 20.0, 10.0)];
+        assert_eq!(
+            best_label(100.0, 299.0, 14.0, 12.0, &runs).as_deref(),
+            Some("Yes")
+        );
     }
 
     #[test]

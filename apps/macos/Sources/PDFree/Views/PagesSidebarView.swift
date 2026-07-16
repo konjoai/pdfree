@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// The left thumbnail rail: a centered `PAGES` label, then one 88×114pt
-/// thumbnail per page — the current page gets a green ring + shadow, others
-/// a plain drop shadow. Drag to reorder; right-click (via the ellipsis menu)
-/// to rotate or delete.
+/// The left rail: page thumbnails by default, or — only when the document
+/// actually has one — the outline/table-of-contents tree, toggled with a
+/// small segmented control at the top. A document with no outline (the
+/// common case) never shows the toggle at all, matching the rest of the app's
+/// convention of not offering a control with nothing behind it.
 struct PagesSidebarView: View {
     @ObservedObject var store: PDFDocumentStore
     /// The page currently being dragged, if any — used only for the dimmed
@@ -13,8 +14,44 @@ struct PagesSidebarView: View {
     /// run on every drag-over event, so the actual reorder only happens once
     /// on drop.
     @State private var draggedIndex: UInt16?
+    @State private var mode: SidebarMode = .pages
+
+    private enum SidebarMode: String, CaseIterable {
+        case pages = "Pages"
+        case outline = "Outline"
+    }
 
     var body: some View {
+        VStack(spacing: 0) {
+            if !store.documentOutline.isEmpty {
+                modePicker
+            }
+
+            switch mode {
+            case .pages:
+                pagesList
+            case .outline:
+                OutlineTreeView(store: store)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.Color.railBg)
+        .overlay(Rectangle().fill(Theme.Color.hairlineFaint).frame(width: 1), alignment: .trailing)
+    }
+
+    private var modePicker: some View {
+        Picker("", selection: $mode) {
+            ForEach(SidebarMode.allCases, id: \.self) { mode in
+                Text(mode.rawValue).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .padding(.horizontal, 12)
+        .padding(.top, 12)
+    }
+
+    private var pagesList: some View {
         ScrollView {
             VStack(spacing: 13) {
                 Text("PAGES")
@@ -31,9 +68,6 @@ struct PagesSidebarView: View {
             }
             .padding(.bottom, 16)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.Color.railBg)
-        .overlay(Rectangle().fill(Theme.Color.hairlineFaint).frame(width: 1), alignment: .trailing)
     }
 
     @ViewBuilder

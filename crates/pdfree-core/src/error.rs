@@ -102,4 +102,19 @@ pub enum PdfError {
         /// The search text that wasn't found.
         find: String,
     },
+
+    /// [`crate::encrypt::encrypt_with_password`] needs an external CLI tool
+    /// that isn't on `PATH`.
+    #[error("required tool `{0}` was not found on PATH — is it installed?")]
+    ToolNotFound(&'static str),
+
+    /// The external tool [`crate::encrypt::encrypt_with_password`] shells
+    /// out to reported a failure.
+    #[error("encryption failed: {0}")]
+    EncryptionFailed(String),
+
+    /// [`crate::encrypt::encrypt_with_password`] was given an empty
+    /// password.
+    #[error("invalid password: {0}")]
+    InvalidPassword(String),
 }

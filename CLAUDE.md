@@ -1232,15 +1232,30 @@ well-reasoned candidates, not a brainstorm dump.
   half-working implementation (tags claimed but not actually read by real
   assistive tech) is worse than being honest that it isn't there yet.
 - **macOS Quick Look extension** — sign/annotate/fill a PDF directly from a
-  Finder/Spotlight preview, without opening the full app — about as close
-  to "zero friction" as a one-off quick edit gets, and a genuinely native
-  differentiator the web/Tauri/iOS shells can't offer. **Feasibility
-  confirmed, with one implementation-path caveat**: Quick Look's own PDF
-  preview already supports basic markup natively (since macOS Mojave), and
-  third-party Quick Look extensions are a real, supported mechanism — but
-  research confirmed the *old* `.qlgenerator` plugin approach is no longer
-  supported as of macOS 15 (Sequoia); any implementation must target the
-  current **QuickLook App Extension** framework, not the deprecated one.
+  Finder/Spotlight preview, without opening the full app. **Re-scoped after
+  a 2026-07-16 deeper pass (this bullet's original "feasibility confirmed"
+  overclaimed what's actually possible — corrected here rather than left
+  standing)**: `QLPreviewingController`/`QLPreviewProvider`, the current
+  (post-`.qlgenerator`, macOS 15+) Quick Look App Extension API, is a
+  **preview-rendering surface only** — it has no supported way to add
+  custom interactive controls (a "Sign here" button, an annotate toolbar)
+  to the Quick Look panel, and no write-back mechanism to modify the
+  previewed file at all. The Markup button users already see in Quick
+  Look's PDF preview is Apple's own system feature (via Preview.app
+  integration), not something exposed to third-party extensions — a
+  third-party PDF app cannot add its own equivalent. It's also sandboxed
+  down to read-only access on just the one previewed file (confirmed via
+  an Apple Developer Forums thread on this exact restriction). So the
+  realistic version of this feature is **preview-only**: a custom Quick
+  Look extension that renders a nicer/more-accurate preview than the
+  system default (using `pdfree-core` directly, no PDFium-in-Finder
+  weirdness) — genuinely buildable, but "sign/annotate/fill directly from
+  Finder" as originally envisioned is not achievable through this API;
+  that flow would still need to hand off to the full app. Given the
+  preview-only ceiling, this is now a lower-priority nice-to-have rather
+  than the "zero friction" differentiator it was first pitched as — worth
+  revisiting only if Apple's Quick Look extension API ever grows
+  interactive/write capabilities.
 - **Platform-native digital signature signing** (macOS/iOS Keychain
   `SecIdentity` + `CMSEncoder`, instead of PDFree building its own crypto/
   PKI stack) — a possible different path into the deferred PKCS#12
@@ -1366,6 +1381,48 @@ well-reasoned candidates, not a brainstorm dump.
   source as this session's earlier `AnnotationColor`/`Color` naming
   collision. Web/Tauri get multi-document more cheaply (browser tabs /
   multiple windows are already free); only the native shells need real work.
+
+  **2026-07-16 scoping pass (this bullet was flagged for scoping, not
+  implementation — findings below, no code changed):**
+  - **Correction to the note above**: automatic window→tab merging (View >
+    Show Tab Bar, `NSWindow.allowsAutomaticWindowTabbing`) is a general
+    AppKit window-management feature that's been available for years, not
+    something specific to macOS 26 or to `DocumentGroup` — it applies to
+    any multi-window macOS app (`WindowGroup` or `DocumentGroup` alike).
+    So multi-window support gets tab-merging "for free" regardless of
+    which scene type is chosen, and regardless of macOS version within any
+    reasonably current range — one less version-gating concern than
+    previously written here.
+  - **The real, newly-identified architectural blocker**: `PDFDocumentStore`
+    today owns a `private let ffiQueue = DispatchQueue(...)` as an
+    *instance* property, and `pages.rs`'s own doc comment already
+    establishes the hard invariant this exists to protect — "never call
+    `pdfium::bind()` twice within one call chain... two live `PDFium`
+    bindings in the same process hangs" (confirmed empirically, see the
+    Phase 3 entry above). A single-window app satisfies that invariant
+    trivially (one store, one serial queue, only ever one call in flight).
+    Multiple windows each holding their *own* `PDFDocumentStore` — the
+    natural first design for "each document tab has its own state" —
+    would create multiple independent serial queues that can each dispatch
+    a `PDFium`-touching call at the same time as another window's queue,
+    which is exactly the two-live-bindings hang condition. **This must be
+    fixed before multi-document is safe to build, not discovered after**:
+    the fix is straightforward (promote `ffiQueue` from a per-store
+    instance property to one shared/static queue every `PDFDocumentStore`
+    instance dispatches onto), but it's a real prerequisite step, not
+    incidental to the DocumentGroup/tab-UI work itself.
+  - **Effort shape, given the above**: (1) shared static FFI queue fix
+    (small, isolated); (2) `DocumentGroup` + `FileDocument`/
+    `ReferenceFileDocument` adoption, replacing `PDFreeApp`'s current single
+    `WindowGroup { ContentView() }` with one document type wrapping the
+    existing `PDFDocumentStore`; (3) migrate or bridge the existing
+    UserDefaults-backed `recentFiles` list against whatever `DocumentGroup`
+    provides natively, per the already-flagged `NSDocument`-superiority
+    caveat — needs a small prototype to decide before committing, not a
+    guess. Medium-sized, multi-step effort; no single piece is huge, but
+    it touches the app's window-management architecture, not just a new
+    view. Web/Tauri still get multi-document more cheaply (browser tabs /
+    multiple windows are already free); this write-up is macOS-specific.
 
 ## Claude Code Instructions
 

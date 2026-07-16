@@ -1,0 +1,154 @@
+%PDF-1.3
+%‚„œ”
+1 0 obj
+<<
+/Producer (pypdf)
+>>
+endobj
+2 0 obj
+<<
+/Type /Pages
+/Count 1
+/Kids [ 4 0 R ]
+>>
+endobj
+3 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+/AcroForm <<
+/Fields [ 5 0 R ]
+/NeedAppearances true
+>>
+>>
+endobj
+4 0 obj
+<<
+/Type /Page
+/Resources <<
+>>
+/MediaBox [ 0.0 0.0 612 792 ]
+/Parent 2 0 R
+/Annots [ 8 0 R 11 0 R ]
+>>
+endobj
+5 0 obj
+<<
+/FT /Btn
+/T (Choice)
+/Ff 32768
+/V /Off
+/Kids [ 8 0 R 11 0 R ]
+>>
+endobj
+6 0 obj
+<<
+/Type /XObject
+/Subtype /Form
+/FormType 1
+/BBox [ 0 0 12 12 ]
+/Resources <<
+>>
+/Length 21
+>>
+stream
+1 0 0 rg 2 2 8 8 re f
+endstream
+endobj
+7 0 obj
+<<
+/Type /XObject
+/Subtype /Form
+/FormType 1
+/BBox [ 0 0 12 12 ]
+/Resources <<
+>>
+/Length 0
+>>
+stream
+
+endstream
+endobj
+8 0 obj
+<<
+/Type /Annot
+/Subtype /Widget
+/Rect [ 72 700 84 712 ]
+/Parent 5 0 R
+/F 4
+/AP <<
+/N <<
+/OptionA 6 0 R
+/Off 7 0 R
+>>
+>>
+/AS /Off
+>>
+endobj
+9 0 obj
+<<
+/Type /XObject
+/Subtype /Form
+/FormType 1
+/BBox [ 0 0 12 12 ]
+/Resources <<
+>>
+/Length 21
+>>
+stream
+1 0 0 rg 2 2 8 8 re f
+endstream
+endobj
+10 0 obj
+<<
+/Type /XObject
+/Subtype /Form
+/FormType 1
+/BBox [ 0 0 12 12 ]
+/Resources <<
+>>
+/Length 0
+>>
+stream
+
+endstream
+endobj
+11 0 obj
+<<
+/Type /Annot
+/Subtype /Widget
+/Rect [ 72 670 84 682 ]
+/Parent 5 0 R
+/F 4
+/AP <<
+/N <<
+/OptionB 9 0 R
+/Off 10 0 R
+>>
+>>
+/AS /Off
+>>
+endobj
+xref
+0 12
+0000000000 65535 f 
+0000000015 00000 n 
+0000000054 00000 n 
+0000000113 00000 n 
+0000000218 00000 n 
+0000000337 00000 n 
+0000000420 00000 n 
+0000000570 00000 n 
+0000000698 00000 n 
+0000000846 00000 n 
+0000000996 00000 n 
+0000001125 00000 n 
+trailer
+<<
+/Size 12
+/Root 3 0 R
+/Info 1 0 R
+>>
+startxref
+1275
+%%EOF

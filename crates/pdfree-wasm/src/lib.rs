@@ -200,6 +200,7 @@ pub struct FormField {
     pub width: f32,
     pub height: f32,
     pub signature_kind: SignatureFieldKind,
+    pub radio_group_index: Option<u32>,
 }
 
 impl From<forms::FormField> for FormField {
@@ -214,6 +215,7 @@ impl From<forms::FormField> for FormField {
             width: f.width,
             height: f.height,
             signature_kind: f.signature_kind.into(),
+            radio_group_index: f.radio_group_index,
         }
     }
 }
@@ -230,7 +232,9 @@ pub fn form_fields(pdf_bytes: Vec<u8>) -> Result<JsValue, JsError> {
 }
 
 /// A value to fill into a named field, scoped to what `pdfree_core::forms`
-/// can actually write: text fields and checkboxes.
+/// can actually write: text fields and checkboxes. Radio group selection was
+/// investigated and confirmed unreachable via `pdfium-render`'s public API
+/// (see `pdfree_core::forms`' module doc comment) — not exposed here.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum FillValue {
@@ -403,6 +407,15 @@ pub enum AnnotationKind {
     Underline,
     StrikeOut,
     Note,
+    Rectangle,
+    Circle,
+    Line,
+    Arrow,
+    Ink,
+    /// `list()`-only value — see `pdfree_core::annotations`' module doc
+    /// comment for why `Rectangle`/`Circle`/`Line`/`Arrow` all read back as
+    /// this instead.
+    Shape,
 }
 
 impl From<AnnotationKind> for annotations::AnnotationKind {
@@ -412,6 +425,12 @@ impl From<AnnotationKind> for annotations::AnnotationKind {
             AnnotationKind::Underline => annotations::AnnotationKind::Underline,
             AnnotationKind::StrikeOut => annotations::AnnotationKind::StrikeOut,
             AnnotationKind::Note => annotations::AnnotationKind::Note,
+            AnnotationKind::Rectangle => annotations::AnnotationKind::Rectangle,
+            AnnotationKind::Circle => annotations::AnnotationKind::Circle,
+            AnnotationKind::Line => annotations::AnnotationKind::Line,
+            AnnotationKind::Arrow => annotations::AnnotationKind::Arrow,
+            AnnotationKind::Ink => annotations::AnnotationKind::Ink,
+            AnnotationKind::Shape => annotations::AnnotationKind::Shape,
         }
     }
 }
@@ -423,7 +442,33 @@ impl From<annotations::AnnotationKind> for AnnotationKind {
             annotations::AnnotationKind::Underline => AnnotationKind::Underline,
             annotations::AnnotationKind::StrikeOut => AnnotationKind::StrikeOut,
             annotations::AnnotationKind::Note => AnnotationKind::Note,
+            annotations::AnnotationKind::Rectangle => AnnotationKind::Rectangle,
+            annotations::AnnotationKind::Circle => AnnotationKind::Circle,
+            annotations::AnnotationKind::Line => AnnotationKind::Line,
+            annotations::AnnotationKind::Arrow => AnnotationKind::Arrow,
+            annotations::AnnotationKind::Ink => AnnotationKind::Ink,
+            annotations::AnnotationKind::Shape => AnnotationKind::Shape,
         }
+    }
+}
+
+/// A single point in PDF points, page-space — mirrors
+/// `pdfree_core::annotations::Point`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct AnnotationPoint {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl From<AnnotationPoint> for annotations::Point {
+    fn from(p: AnnotationPoint) -> Self {
+        annotations::Point::new(p.x, p.y)
+    }
+}
+
+impl From<annotations::Point> for AnnotationPoint {
+    fn from(p: annotations::Point) -> Self {
+        Self { x: p.x, y: p.y }
     }
 }
 
@@ -438,6 +483,8 @@ pub struct Annotation {
     pub height: f32,
     pub color: Option<AnnotationColor>,
     pub note: Option<String>,
+    #[serde(default)]
+    pub points: Vec<AnnotationPoint>,
 }
 
 impl From<Annotation> for annotations::Annotation {
@@ -451,6 +498,7 @@ impl From<Annotation> for annotations::Annotation {
             height: a.height,
             color: a.color.map(Into::into),
             note: a.note,
+            points: a.points.into_iter().map(Into::into).collect(),
         }
     }
 }

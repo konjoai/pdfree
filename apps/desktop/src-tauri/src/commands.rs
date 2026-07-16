@@ -97,6 +97,7 @@ pub struct FormField {
     pub width: f32,
     pub height: f32,
     pub signature_kind: String,
+    pub radio_group_index: Option<u32>,
 }
 
 impl From<forms::FormField> for FormField {
@@ -111,6 +112,7 @@ impl From<forms::FormField> for FormField {
             width: f.width,
             height: f.height,
             signature_kind: format!("{:?}", f.signature_kind),
+            radio_group_index: f.radio_group_index,
         }
     }
 }

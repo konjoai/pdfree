@@ -34,6 +34,7 @@ pub mod boxes;
 pub mod convert;
 pub mod document;
 pub mod editor;
+pub mod encrypt;
 pub mod error;
 pub mod fields;
 pub mod forms;

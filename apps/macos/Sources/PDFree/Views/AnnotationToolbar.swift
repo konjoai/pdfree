@@ -20,6 +20,11 @@ struct AnnotationToolbar: View {
         Item(tool: .underline, icon: "underline", help: "Underline"),
         Item(tool: .strikeout, icon: "strikethrough", help: "Strikeout"),
         Item(tool: .note, icon: "note.text", help: "Sticky note"),
+        Item(tool: .rectangle, icon: "rectangle", help: "Rectangle"),
+        Item(tool: .circle, icon: "circle", help: "Circle"),
+        Item(tool: .line, icon: "line.diagonal", help: "Line"),
+        Item(tool: .arrow, icon: "arrow.up.right", help: "Arrow"),
+        Item(tool: .ink, icon: "pencil.tip", help: "Freehand draw"),
     ]
 
     var body: some View {

@@ -19,7 +19,15 @@ struct PageCanvasView: View {
     let fieldOverlays: [FieldOverlayBox]
     let onTap: (CGPoint) -> Void
     let onDrag: (CGPoint, CGPoint) -> Void
+    /// Fired once, on release, with every point sampled along a `.ink`-tool
+    /// freehand stroke (already converted to PDF points) — unlike `onDrag`,
+    /// which only ever reports a drag's start/end.
+    let onFreehandDrag: ([CGPoint]) -> Void
     let onDoubleTap: (CGPoint) -> Void
+
+    /// Accumulates in pixel space while a `.ink` stroke is in progress, for
+    /// both the live preview below and the final `onFreehandDrag` callback.
+    @State private var freehandPoints: [CGPoint] = []
 
     let inlineEditBox: DetectedBox?
     @Binding var inlineEditText: String
@@ -35,6 +43,10 @@ struct PageCanvasView: View {
     /// box then dismisses it. Before completion this stays `nil`, so a stray
     /// click can't close the box mid-signing.
     var onSignBackgroundTap: (() -> Void)?
+
+    /// The current search match's bounding box, when it's on this page —
+    /// `nil` on every other page, and whenever no search is active.
+    var searchHighlightBox: DetectedBox?
 
     @FocusState private var inlineEditFocused: Bool
 
@@ -61,8 +73,19 @@ struct PageCanvasView: View {
         ZStack(alignment: .topLeading) {
             Image(nsImage: image)
                 .contentShape(Rectangle())
-                .gesture(dragGesture)
+                .gesture(canvasGesture)
                 .simultaneousGesture(combinedTapGesture)
+
+            if tool == .ink, freehandPoints.count > 1 {
+                Path { path in
+                    path.move(to: freehandPoints[0])
+                    for point in freehandPoints.dropFirst() {
+                        path.addLine(to: point)
+                    }
+                }
+                .stroke(Theme.Color.trafficRed, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                .allowsHitTesting(false)
+            }
 
             if tool == .fill || tool == .sign {
                 ForEach(fieldOverlays) { overlay in
@@ -72,6 +95,18 @@ struct PageCanvasView: View {
 
             if let box = inlineEditBox {
                 inlineEditor(for: box, at: toPixelRect(box))
+            }
+
+            if let searchHighlightBox {
+                let rect = toPixelRect(searchHighlightBox)
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Theme.Color.amber.opacity(0.30))
+                    .overlay(RoundedRectangle(cornerRadius: 3).stroke(Theme.Color.amber, lineWidth: 2))
+                    .frame(width: max(rect.width, 4), height: max(rect.height, 4))
+                    .position(x: rect.midX, y: rect.midY)
+                    .allowsHitTesting(false)
+                    .animation(Theme.Anim.focusRing, value: searchHighlightBox.x)
+                    .animation(Theme.Anim.focusRing, value: searchHighlightBox.y)
             }
 
             if let signAnchorBox, let signOverlay {
@@ -240,10 +275,26 @@ struct PageCanvasView: View {
             )
     }
 
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: 4).onEnded { value in
-            guard tool.isDragBased else { return }
-            onDrag(toPDFPoint(value.startLocation), toPDFPoint(value.location))
-        }
+    /// `.ink` needs every intermediate point (a freehand stroke, not a
+    /// two-point box/line), so its `minimumDistance` drops to 0 — every
+    /// other tool keeps the original 4pt threshold so an ordinary click
+    /// still resolves as a tap (`combinedTapGesture`) rather than a
+    /// zero-length drag.
+    private var canvasGesture: some Gesture {
+        DragGesture(minimumDistance: tool == .ink ? 0 : 4)
+            .onChanged { value in
+                guard tool == .ink else { return }
+                freehandPoints.append(value.location)
+            }
+            .onEnded { value in
+                if tool == .ink {
+                    if freehandPoints.count > 1 {
+                        onFreehandDrag(freehandPoints.map(toPDFPoint))
+                    }
+                    freehandPoints = []
+                } else if tool.isDragBased {
+                    onDrag(toPDFPoint(value.startLocation), toPDFPoint(value.location))
+                }
+            }
     }
 }
